@@ -1,61 +1,93 @@
-    # app.py
-import os
+# app.py
+from __future__ import annotations
+
 import json
+import os
 import re
 import sqlite3
+from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 import requests
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 
-from dotenv import load_dotenv
-import os
+# -----------------------------
+# Load .env (absolute path)
+# -----------------------------
+BASE_DIR = Path(__file__).resolve().parent
+ENV_PATH = BASE_DIR / ".env"
+load_dotenv(dotenv_path=ENV_PATH, override=True)
 
-# Load environment variables from .env
-load_dotenv()
+DB_PATH = str(BASE_DIR / "consultant.db")
+CRITERIA_FILE = str(BASE_DIR / "Dataset" / "UniAssistCriteria_clean.txt")  # adjust if needed
 
 
+# -----------------------------
+# Helpers: DB
+# -----------------------------
+def init_db() -> None:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS consultations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT,
+            name TEXT,
+            background TEXT,
+            gpa REAL,
+            scale_max REAL,
+            min_pass REAL,
+            german_grade_est REAL,
+            paid_pref TEXT,
+            study_language TEXT,
+            german_level TEXT,
+            results_json TEXT
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
 
-DB_PATH = "consultant.db"
-CRITERIA_FILE = "Dataset/UniAssistCriteria_clean.txt"  # put cleaned file next to app.py
 
-from fastapi import FastAPI
-from contextlib import asynccontextmanager
-import os
-
+# -----------------------------
+# Lifespan (startup/shutdown)
+# -----------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # ---- startup ----
+    init_db()
+
     key = os.getenv("DEEPSEEK_API_KEY")
     url = os.getenv("DEEPSEEK_URL")
+    model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
+    print(f"📄 Loading .env from: {ENV_PATH} | exists={ENV_PATH.exists()}")
     if key and url:
         print("✅ DeepSeek API configured")
         print(f"🔑 Key length: {len(key)}")
         print(f"🌐 URL: {url}")
+        print(f"🤖 Model: {model}")
     else:
         print("⚠️ DeepSeek NOT configured – using rule-based shortlist only")
+        print(f"DEEPSEEK_API_KEY loaded? {bool(key)}")
+        print(f"DEEPSEEK_URL loaded? {bool(url)}")
 
     yield
-
-    # ---- shutdown ----
     print("🛑 Application shutdown")
 
-app = FastAPI(
-    title="Uni Eligibility Finder",
-    lifespan=lifespan
-)
 
+app = FastAPI(title="Uni Eligibility Finder", lifespan=lifespan)
 
 # Serve frontend
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
 # -----------------------------
@@ -64,14 +96,17 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 class StudentInput(BaseModel):
     name: str = Field(..., min_length=1)
     background: str = ""
-    paid_pref: str = "no_preference"  # "paid" | "unpaid" | "no_preference"
+
+    # paid/unpaid is optional; you can decide later how to use it
+    paid_pref: str = "no_preference"  # paid | unpaid | no_preference
 
     gpa: float
     scale_max: float = 4.0
     min_pass: float = 2.0
 
-    # NEW: language restriction
-    language_mode: str = "english_only"  # "english_only" | "german_allowed"
+    # language choice
+    study_language: str = "english"   # english | german | both
+    german_level: str = "none"        # none | a2 | b1 | b2 | c1
 
 
 # -----------------------------
@@ -85,7 +120,7 @@ def convert_to_german_grade(
     german_worst_pass: float = 4.0,
 ) -> float:
     if max_grade <= min_passing_grade:
-        raise ValueError("max_grade must be > min_passing_grade")
+        raise ValueError("scale_max must be > min_pass")
 
     grade = max(min_passing_grade, min(grade, max_grade))
     german = german_best + (german_worst_pass - german_best) * (max_grade - grade) / (max_grade - min_passing_grade)
@@ -93,21 +128,25 @@ def convert_to_german_grade(
 
 
 # -----------------------------
-# Parse criteria
+# Parse criteria text file
 # -----------------------------
 def load_program_records(path: str) -> List[Dict[str, str]]:
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Criteria file not found: {path}")
+
     with open(path, "r", encoding="utf-8") as f:
         txt = f.read()
 
     chunks = [c.strip() for c in txt.split("-" * 62) if c.strip()]
-    records = []
+    records: List[Dict[str, str]] = []
+
     for c in chunks:
         if c.startswith("WINTER SEMESTER"):
             continue
         if c.upper().startswith("CRITERIA:"):
             continue
 
-        rec = {}
+        rec: Dict[str, str] = {}
         for line in c.splitlines():
             m = re.match(r"^([^:]+):\s*(.*)$", line.strip())
             if m:
@@ -115,41 +154,100 @@ def load_program_records(path: str) -> List[Dict[str, str]]:
 
         if rec.get("Program") and rec.get("University"):
             records.append(rec)
+
     return records
 
 
 def _lang_blob(r: Dict[str, str]) -> str:
-    blob = " ".join([
-        r.get("Language of instruction", ""),
-        r.get("Language proficiency", ""),
-        r.get("University info", ""),
-        r.get("Notes", ""),
-    ])
+    blob = " ".join(
+        [
+            r.get("Language of instruction", ""),
+            r.get("Language proficiency", ""),
+            r.get("University info", ""),
+            r.get("Admission requirements", ""),
+            r.get("Notes", ""),
+        ]
+    )
     return blob.lower()
 
 
-def _is_clearly_english(blob: str) -> bool:
-    return "english" in blob and "german taught" not in blob
+# -----------------------------
+# Language logic + German level logic
+# -----------------------------
+GER_LEVEL_SCORE = {"none": 0, "a2": 2, "b1": 3, "b2": 4, "c1": 5}
+
+def detect_program_language(blob: str) -> str:
+    b = (blob or "").lower()
+    has_en = "english" in b
+    has_de = ("german" in b) or ("deutsch" in b)
+    if has_en and has_de:
+        return "both"
+    if has_en:
+        return "english"
+    if has_de:
+        return "german"
+    return "unknown"
 
 
-def _is_clearly_german_only(blob: str) -> bool:
-    # If it explicitly says German, and does not mention English anywhere
-    return ("german" in blob) and ("english" not in blob)
+def extract_required_german_level(text: str) -> Optional[str]:
+    t = (text or "").lower()
+    # very common patterns
+    if "c1" in t:
+        return "c1"
+    if "b2" in t:
+        return "b2"
+    if "b1" in t:
+        return "b1"
+    if "a2" in t:
+        return "a2"
+    return None
 
 
+def german_level_ok(student_level: str, required_level: Optional[str]) -> bool:
+    if not required_level:
+        return True
+    return GER_LEVEL_SCORE.get(student_level, 0) >= GER_LEVEL_SCORE.get(required_level, 0)
+
+
+# -----------------------------
+# Confidence calibration (FH vs TU heuristic)
+# -----------------------------
+def estimate_uni_type(university_name: str) -> str:
+    u = (university_name or "").lower()
+    if "university of applied sciences" in u or "hochschule" in u or "fh" in u:
+        return "FH"
+    if "technical university" in u or "technische universität" in u or u.startswith("tu "):
+        return "TU"
+    return "UNI"
+
+
+def apply_confidence_calibration(score: float, uni_type: str) -> float:
+    # small adjustment only (heuristic)
+    if uni_type == "FH":
+        return min(100.0, score + 5.0)
+    if uni_type == "TU":
+        return max(0.0, score - 5.0)
+    return score
+
+
+# -----------------------------
+# Borderline-aware filtering
+# -----------------------------
 def filter_programs(
     records: List[Dict[str, str]],
     german_grade_est: float,
-    language_mode: str,
+    study_language: str,
+    german_level: str,
     background_text: str,
-) -> List[Dict[str, str]]:
-    out = []
-    bt = background_text.lower().strip()
+) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    bt = (background_text or "").lower().strip()
 
     for r in records:
         ok = True
+        flags: List[str] = []
 
-        # Entrance grade (heuristic)
+        # Entrance grade heuristic
         eg = r.get("Entrance grade", "")
         if eg:
             m = re.search(r"(\d+[.,]\d+|\d+)", eg)
@@ -157,163 +255,205 @@ def filter_programs(
                 req = float(m.group(1).replace(",", "."))
                 if german_grade_est > req:
                     ok = False
+            else:
+                flags.append("entrance_grade_unparsed")
 
-        # NEW: language restriction
         blob = _lang_blob(r)
-        if language_mode == "english_only":
-            # drop clearly German-only programs
-            if _is_clearly_german_only(blob):
+        plang = detect_program_language(blob)
+
+        # user preference: english / german / both
+        if study_language == "english":
+            if plang == "german":
                 ok = False
-            # if clearly english -> keep, if unknown -> keep (don’t over-filter)
-        elif language_mode == "german_allowed":
-            # allow both; no language filter
+            elif plang == "unknown":
+                flags.append("language_unknown")
+        elif study_language == "german":
+            if plang == "english":
+                ok = False
+            elif plang == "unknown":
+                flags.append("language_unknown")
+        elif study_language == "both":
+            # allow everything
             pass
 
-        # Light background relevance (not hard reject)
-        reqtxt = " ".join([
-            r.get("Requirement", ""),
-            r.get("Voraussetzung", ""),
-            r.get("Admission requirements", ""),
-        ]).lower()
+        # German level requirement only if program is German or mixed and user allows German
+        if study_language in ("german", "both") and plang in ("german", "both"):
+            req_level = extract_required_german_level(
+                " ".join(
+                    [
+                        r.get("Language proficiency", ""),
+                        r.get("Admission requirements", ""),
+                        r.get("Notes", ""),
+                    ]
+                )
+            )
+            if req_level:
+                if not german_level_ok(german_level, req_level):
+                    ok = False
+            else:
+                flags.append("german_level_unknown")
 
+        # background relevance = borderline only (not reject)
+        reqtxt = " ".join([r.get("Requirement", ""), r.get("Voraussetzung", ""), r.get("Admission requirements", "")]).lower()
         if bt and reqtxt:
             strong_terms = ["electrical", "computer", "engineering", "business", "informatics", "mechanical", "software"]
             if any(t in reqtxt for t in strong_terms):
-                # if requirement mentions a strong term, prefer overlap (still not a hard reject)
                 if not any(t in bt for t in strong_terms if t in reqtxt):
-                    pass
+                    flags.append("background_mismatch_possible")
 
         if ok:
-            out.append(r)
+            r2 = dict(r)
+            r2["_flags"] = flags
+            r2["_program_language"] = plang
+            out.append(r2)
 
     return out
 
 
 # -----------------------------
-# DeepSeek ranking (pluggable)
+# DeepSeek ranking
 # -----------------------------
-def deepseek_rank(programs: List[Dict[str, str]], student_profile: Dict[str, Any]) -> List[Dict[str, Any]]:
+def deepseek_rank(programs: List[Dict[str, Any]], student_profile: Dict[str, Any]) -> List[Dict[str, Any]]:
     api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
     url = os.getenv("DEEPSEEK_URL", "").strip()
+    model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    temperature = float(os.getenv("DEEPSEEK_TEMPERATURE", "0.2"))
 
+    # fallback
     if not api_key or not url:
         top = programs[:10]
-        return [{
-            "rank": i + 1,
-            "program_name": p.get("Program", ""),
-            "university": p.get("University", ""),
-            "score_0_100": None,
-            "reason": "DeepSeek not configured; rule-based shortlist only."
-        } for i, p in enumerate(top)]
+        return [
+            {
+                "rank": i + 1,
+                "program_name": p.get("Program", ""),
+                "university": p.get("University", ""),
+                "score_0_100": None,
+                "reason": "DeepSeek not configured; rule-based shortlist only.",
+                "uni_type": estimate_uni_type(p.get("University", "")),
+                "flags": p.get("_flags", []),
+            }
+            for i, p in enumerate(top)
+        ]
 
-    # DeepSeek Chat Completions format (OpenAI-compatible)
-    model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    # Pack only what model needs (keep prompt smaller)
+    packed_programs = []
+    for p in programs[:30]:
+        packed_programs.append(
+            {
+                "program_name": p.get("Program", ""),
+                "university": p.get("University", ""),
+                "entrance_grade": p.get("Entrance grade", ""),
+                "requirements": " ".join([p.get("Requirement", ""), p.get("Voraussetzung", ""), p.get("Admission requirements", "")]).strip(),
+                "language_info": " ".join([p.get("Language of instruction", ""), p.get("Language proficiency", "")]).strip(),
+                "flags": p.get("_flags", []),
+                "uni_type_hint": estimate_uni_type(p.get("University", "")),
+            }
+        )
 
     system_msg = (
-        "You are an admissions eligibility assistant for German universities. "
+        "You are an admissions eligibility assistant for German universities.\n"
         "Score each program 0-100 based on these weighted criteria:\n"
-        "1. GPA match (40%): Compare student's German grade estimate with program's entrance grade\n"
-        "2. Background relevance (30%): Match between student's background and program requirements\n"
-        "3. Language fit (20%): Based on student's language preference\n"
-        "4. Paid/unpaid preference (10%): If student has preference\n"
-        "Use strict numerical scoring, then rank by score.\n"
-        "Return STRICT JSON only."
+        "1) GPA match (40%) comparing student's German grade estimate vs entrance grade.\n"
+        "2) Background relevance (30%) vs requirements text.\n"
+        "3) Language fit (20%) based on student's study_language and german_level.\n"
+        "4) Borderline flags (10%) – reduce score slightly if flags exist.\n"
+        "Return STRICT JSON only. No markdown. No explanations outside JSON."
     )
 
     user_msg = {
         "student": student_profile,
-        "programs": programs[:30],
-        "instructions": (
-            "Return JSON array ONLY in this exact schema:\n"
-            "[{"
-            "\"rank\": 1, "
-            "\"program_name\": \"...\", "
-            "\"university\": \"...\", "
-            "\"score_0_100\": 0, "
-            "\"reason\": \"1-2 sentences\""
-            "}]\n"
-            "No markdown, no extra text."
-        )
+        "programs": packed_programs,
+        "schema": [
+            {
+                "rank": 1,
+                "program_name": "...",
+                "university": "...",
+                "score_0_100": 0,
+                "reason": "1-2 sentences",
+            }
+        ],
     }
 
     payload = {
         "model": model,
         "messages": [
             {"role": "system", "content": system_msg},
-            {"role": "user", "content": json.dumps(user_msg, ensure_ascii=False)}
+            {"role": "user", "content": json.dumps(user_msg, ensure_ascii=False)},
         ],
-        "temperature": 0.2
+        "temperature": temperature,
     }
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     resp = requests.post(url, headers=headers, json=payload, timeout=60)
 
-    # Helpful debugging if it fails
     if resp.status_code >= 400:
         raise RuntimeError(f"DeepSeek error {resp.status_code}: {resp.text}")
 
     data = resp.json()
-
-    # OpenAI-style response parsing
     content = data["choices"][0]["message"]["content"].strip()
 
-    # Extract JSON safely (in case model adds text)
     match = re.search(r"(\[.*\])", content, flags=re.S)
     if not match:
-        raise RuntimeError(f"DeepSeek returned non-JSON: {content[:500]}")
+        raise RuntimeError(f"DeepSeek returned non-JSON: {content[:800]}")
 
-    return json.loads(match.group(1))
+    ranked = json.loads(match.group(1))
 
+    # Apply FH/TU calibration + attach flags
+    # Create a quick lookup from (program_name, university) to flags
+    flag_map = {}
+    for p in programs[:30]:
+        flag_map[(p.get("Program", ""), p.get("University", ""))] = p.get("_flags", [])
+
+    for item in ranked:
+        uni = item.get("university", "")
+        uni_type = estimate_uni_type(uni)
+        item["uni_type"] = uni_type
+        item["flags"] = flag_map.get((item.get("program_name", ""), uni), [])
+
+        if item.get("score_0_100") is not None:
+            try:
+                s = float(item["score_0_100"])
+                item["score_0_100"] = round(apply_confidence_calibration(s, uni_type), 1)
+            except Exception:
+                pass
+
+    # Re-rank by calibrated score (if present)
+    ranked_sorted = sorted(
+        ranked,
+        key=lambda x: (x.get("score_0_100") is None, -(x.get("score_0_100") or 0)),
+    )
+    for i, it in enumerate(ranked_sorted, start=1):
+        it["rank"] = i
+
+    return ranked_sorted
 
 
 # -----------------------------
-# Storage
+# Save consultation
 # -----------------------------
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS consultations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            created_at TEXT,
-            name TEXT,
-            background TEXT,
-            gpa REAL,
-            scale_max REAL,
-            min_pass REAL,
-            german_grade_est REAL,
-            paid_pref TEXT,
-            language_mode TEXT,
-            results_json TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-
 def save_consultation(inp: StudentInput, german_grade_est: float, results: List[Dict[str, Any]]):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(
+        """
         INSERT INTO consultations
-        (created_at, name, background, gpa, scale_max, min_pass, german_grade_est, paid_pref, language_mode, results_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        datetime.utcnow().isoformat(),
-        inp.name,
-        inp.background,
-        inp.gpa,
-        inp.scale_max,
-        inp.min_pass,
-        german_grade_est,
-        inp.paid_pref,
-        inp.language_mode,
-        json.dumps(results, ensure_ascii=False),
-    ))
+        (created_at, name, background, gpa, scale_max, min_pass, german_grade_est, paid_pref, study_language, german_level, results_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            datetime.utcnow().isoformat(),
+            inp.name,
+            inp.background,
+            inp.gpa,
+            inp.scale_max,
+            inp.min_pass,
+            german_grade_est,
+            inp.paid_pref,
+            inp.study_language,
+            inp.german_level,
+            json.dumps(results, ensure_ascii=False),
+        ),
+    )
     conn.commit()
     conn.close()
 
@@ -321,14 +461,9 @@ def save_consultation(inp: StudentInput, german_grade_est: float, results: List[
 # -----------------------------
 # Routes
 # -----------------------------
-@app.on_event("startup")
-def on_startup():
-    init_db()
-
-
 @app.get("/", response_class=HTMLResponse)
 def home():
-    with open("static/index.html", "r", encoding="utf-8") as f:
+    with open(BASE_DIR / "static" / "index.html", "r", encoding="utf-8") as f:
         return f.read()
 
 
@@ -340,7 +475,8 @@ def recommend(inp: StudentInput):
     filtered = filter_programs(
         records=records,
         german_grade_est=german_est,
-        language_mode=inp.language_mode,
+        study_language=inp.study_language,
+        german_level=inp.german_level,
         background_text=inp.background,
     )
 
@@ -352,7 +488,8 @@ def recommend(inp: StudentInput):
         "min_pass": inp.min_pass,
         "german_grade_est": german_est,
         "paid_pref": inp.paid_pref,
-        "language_mode": inp.language_mode,
+        "study_language": inp.study_language,
+        "german_level": inp.german_level,
     }
 
     ranked = deepseek_rank(filtered, student_profile)
@@ -362,4 +499,25 @@ def recommend(inp: StudentInput):
         "german_grade_est": german_est,
         "shortlist_count": len(filtered),
         "results": ranked[:10],
+    }
+
+
+@app.get("/api/program_details")
+def program_details(university: str, program: str):
+    # Lightweight “search further” feature: returns search queries + clickable links
+    queries = [
+        f"{university} {program} admission requirements",
+        f"{university} {program} language requirements",
+        f"{university} {program} application deadline winter semester",
+        f"{university} {program} uni-assist",
+        f"{university} {program} entrance grade",
+        f"{university} {program} module handbook",
+    ]
+
+    return {
+        "university": university,
+        "program": program,
+        "suggested_search_queries": queries,
+        "google_links": [f"https://www.google.com/search?q={quote(q)}" for q in queries],
+        "note": "Next step: integrate live web lookup + summarization.",
     }
