@@ -1,0 +1,443 @@
+WINTER SEMESTER – UNIVERSITY / UNI-ASSIST CRITERIA (CLEANED)
+==============================================================
+Source: WinterSemsterUniAssistCriteria.txt
+
+
+Program: Information Technology
+Degree: Master of Engineering
+University: Frankfurt University of Applied Sciences
+Admission type: NC-frei
+Federal state: Hessen
+Campus: Frankfurt am Main
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Requirement: Higher education degree in electrical engineering, electrotechnical engineering or similar with a focus on Information and Communication Technology equivalent to German higher education with a regular period of study of at least six semesters.
+University info: English taught degree program. Information about the degree program.
+Notes: - Total grade of at least 2.0 according to the German grading system
+--------------------------------------------------------------
+
+Program: Applied Computer Science
+Degree: Master of Science
+University: Universität Bayreuth
+Admission type: NC-frei
+Federal state: Bayern
+Campus: Bayreuth
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Language of instruction: German
+Language proficiency: German B2
+Entrance grade: none
+Aptitude assessment: none
+University info: Apply to the University of Bayreuth (UBT) in the Portal CAMPUSonline, and Request Preliminary Review Documentation (VPD) via uni-assist
+Admission requirements: Applied Computer Science (M.Sc.)
+Notes: *You can have your documents reviewed by uni-assist any time of the year. It does not matter whether you request the VPD for the summer semester or the winter semester at uni-assist. The VPD is valid from the date of issue.
+--------------------------------------------------------------
+
+Program: Computer Science
+Degree: Master of Science
+University: Universität Paderborn
+Admission type: NC-frei
+Federal state: Nordrhein-Westfalen
+Campus: Paderborn
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+University info: The Computer Science master degree at University of Paderborn is taught in English and starts both in summer and winter semester. The faculty provides the information content, structure and scope of the program whereas the International office shares information about application formalities and deadlines. Details on consultation by e-mail or phone are available here.
+--------------------------------------------------------------
+
+Program: Computer Science
+Degree: Master of Science
+University: Universität Bayreuth
+Admission type: NC-frei
+Federal state: Bayern
+Campus: Bayreuth
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Language of instruction: English
+Language proficiency: English B2+ (min. IELTS 6.5, TOEFL 88 or comparable - no proficiency letters) German A1 (by the end of the 2nd Semester)
+Entrance grade: 2,5 or better (Grade Conversion using the Bavarian Formula
+Aptitude assessment: no
+University info: APPLY to the University of Bayreuth (UBT) in the Portal CAMPUSonline, and REQUEST Preliminary Review Documentation (VPD) via uni-assist
+Admission requirements: Computer Science (M.Sc.)
+Notes: *If the portal for the desired start semester is not yet open at uni-assist, simply select the current semester. The VPD is valid from the date of issue.
+--------------------------------------------------------------
+
+Program: Computer Science/Informatics
+Degree: Master of Science
+University: Universität Bayreuth
+Admission type: NC-frei
+Federal state: Bayern
+Campus: Bayreuth
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Language of instruction: German
+Language proficiency: German B2
+Entrance grade: none
+Aptitude assessment: none
+University info: Apply to the University of Bayreuth (UBT) in the Portal CAMPUSonline, and Request Preliminary Review Documentation (VPD) via uni-assist
+Admission requirements: Computer Science (in German) (M.Sc.)
+Notes: *You can have your documents reviewed by uni-assist any time of the year. It does not matter whether you request the VPD for the summer semester or the winter semester at uni-assist. The VPD is valid from the date of issue.
+--------------------------------------------------------------
+
+Program: Philosophy and Computer Science
+Degree: Master
+University: Universität Bayreuth
+Admission type: NC-frei
+Federal state: Bayern
+Campus: Bayreuth
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Language of instruction: English
+Language proficiency: English B2 (& German A1 by the end of the 2nd semester)
+Entrance grade: none
+Aptitude assessment: yes
+University info: Apply to the University of Bayreuth (UBT) in the Portal CAMPUSonline, and Request Preliminary Review Documentation (VPD) via uni-assist
+Admission requirements: Philosophy and Computer Science (M.A./M.Sc.)
+Notes: *You can have your documents reviewed by uni-assist any time of the year. It does not matter whether you request the VPD for the summer semester or the winter semester at uni-assist. The VPD is valid from the date of issue.
+--------------------------------------------------------------
+
+Program: Business Administration
+Degree: Master
+University: Hochschule München University of Applied Sciences
+Admission type: Manueller NC (weitere Zulassungsbedingungen)
+Federal state: Bayern
+Campus: München
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Notes: Please enquire at the university, if applications are being accepted for the summer semester. If not, you can use the VPD for an application at a later semester
+--------------------------------------------------------------
+
+Program: Business Administration
+Degree: Master of Science
+University: Universität Bayreuth
+Admission type: NC-frei
+Federal state: Bayern
+Campus: Bayreuth
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Language of instruction: German
+Language proficiency: German C1
+Entrance grade: 2,5 or better (Grade Conversion using the Bavarian Formula)
+Aptitude assessment: yes
+University info: APPLY to the University of Bayreuth (UBT) in the Portal CAMPUSonline, and REQUEST Preliminary Review Documentation (VPD) via uni-assist
+Admission requirements: Business Administration (M.Sc.)
+Notes: *If the portal for the desired start semester is not yet open at uni-assist, simply select the current semester. The VPD is valid from the date of issue.
+--------------------------------------------------------------
+
+Program: Business administration and Engineering
+Degree: Master of Science
+University: Universität Bayreuth
+Admission type: NC-frei
+Federal state: Bayern
+Campus: Bayreuth
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Language of instruction: German
+Language proficiency: German B2
+Entrance grade: 1,9 or better (Grade Conversion using the Bavarian Formula)
+Aptitude assessment: yes, from 2,0
+University info: Apply to the University of Bayreuth (UBT) in the Portal CAMPUSonline, and Request Preliminary Review Documentation (VPD) via uni-assist
+Admission requirements: Business Administration and Engineering (M.Sc.)
+Notes: *If the portal for the desired start semester is not yet open at uni-assist, simply select the current semester. The VPD is valid from the date of issue.
+--------------------------------------------------------------
+
+Program: Business Information Systems Engineering
+Degree: Master of Science
+University: Universität Bayreuth
+Admission type: NC-frei
+Federal state: Bayern
+Campus: Bayreuth
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Language of instruction: German
+Language proficiency: German B2
+Entrance grade: 2,5 or better (Grade Conversion using the Bavarian Formula)
+Aptitude assessment: none
+University info: Apply to the University of Bayreuth (UBT) in the Portal CAMPUSonline, and Request Preliminary Review Documentation (VPD) via uni-assist
+Admission requirements: Business & Information Systems Engineering (M.Sc.)
+Notes: *You can have your documents reviewed by uni-assist any time of the year. It does not matter whether you request the VPD for the summer semester or the winter semester at uni-assist. The VPD is valid from the date of issue.
+--------------------------------------------------------------
+
+Program: Business Intelligence and Data Analytics
+Degree: Master
+University: Hochschule Emden/Leer
+Admission type: Manueller NC (weitere Zulassungsbedingungen)
+Federal state: Niedersachsen
+Campus: Emden
+Subject (major/minor): Major subject
+Form of studies: -
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Application deadlines: Wintersemester Non-EU 01.02. - 30.04. / EU 01.05. - 15.07. Sommersemester Non-EU 01.06. - 30.09. / EU 01.12. - 15.01 Nähere Informationen finden Sie hier.
+--------------------------------------------------------------
+
+Program: Business Law
+Degree: Master of Law
+University: Universität Bayreuth
+Admission type: NC-frei
+Federal state: Bayern
+Campus: Bayreuth
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Language of instruction: GERMAN
+Language proficiency: German DSH-2
+Entrance grade: none
+Aptitude assessment: none
+University info: Apply to the University of Bayreuth (UBT) in the Portal CAMPUSonline & Request Preliminary Review Documentation (VPD) via uni-assist
+Admission requirements: Wirtschaftsrecht (LL.M.)
+Notes: *You can have your documents reviewed by uni-assist any time of the year. It does not matter whether you request the VPD for the summer semester or the winter semester at uni-assist. The VPD is valid from the date of issue.
+--------------------------------------------------------------
+
+Program: European Film Business and Law
+Degree: Master of Business Administration
+University: Filmuniversität Babelsberg KONRAD WOLF
+Admission type: NC-frei
+Federal state: Brandenburg
+Campus: Potsdam
+Subject (major/minor): Major subject
+Form of studies: -
+Course category: Unknown
+Course type: Full-time
+Focus: -
+Specialisation: -
+Full time duration: 4 semesters
+Part time duration: 6 semesters
+University info: Classes are held in blocks and partly on weekends, making it possible to study while working. Most modules will be deliviered online, facilitating easier access to the program to all international professionals. Study weeks in Potsdam will offer opportunities for in-person exchange and intensive networking. The individual module allocation, the various study options to choose from as well as the possibility of crediting achievements already made also allow the greatest possible flexibility to reconcile work, studies and family.
+--------------------------------------------------------------
+
+Program: International Business and Management (Master) (non EU/non EWR)
+Degree: Master of Arts (M.A.) Konsekutiv
+University: Hochschule Osnabrück
+Admission type: Orts-NC
+Federal state: Niedersachsen
+Campus: Hochschule Osnabrück (Osnabrück)
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+University info: This degree program is only open to applicants who are citizens of a non-EU country. Proof of the required German language skills can be submitted directly to Osnabrück University of Applied Sciences, Studierendensekretariat, Postfach 1940, 49009 Osnabrück, by 31.08.2026. For further information about the degree program and the application documents to be submitted, please refer to the Osnabrück University of Applied Sciences website.
+--------------------------------------------------------------
+
+Program: International Business Management
+Degree: Master
+University: Internationale Hochschule SDI München
+Admission type: NC-frei
+Federal state: Bayern
+Campus: Internationale Hochschule SDI München
+Subject (major/minor): Major subject
+Form of studies: Postgraduate Studies
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Language of instruction: English (No prior knowledge of German required)
+Notes: The 3-semester Master's degree program International Business Management is designed to develop future leaders in international business. This advanced, practice-oriented degree equips students with strategic, financial, and digital competencies, preparing them for leadership roles in globally operating organizations. The programme emphasizes intercultural competence, entrepreneurial thinking, and ethical leadership, blending academic rigour with hands-on project work and real-world simulations. Please note the deadlines for each semester at the International University SDI München. While applications can still be submitted via uni-assist until 15 October, processing may take several weeks. We therefore strongly recommend applying as early as possible.
+--------------------------------------------------------------
+
+Program: International Business Studies
+Degree: Master of Science
+University: Universität Paderborn
+Admission type: NC-frei
+Federal state: Nordrhein-Westfalen
+Campus: Paderborn
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Language of instruction: German
+Start: summer and winter semester
+Notes: Information on admission requirements and course content can be found here! For more information and consultation, please contact the Studienbüro / Office for Academic Affairs or International Office!
+--------------------------------------------------------------
+
+Program: International Food Business and Consumer Studies
+Degree: Master
+University: Universität Kassel
+Admission type: NC-frei
+Federal state: Hessen
+Campus: Kassel
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+--------------------------------------------------------------
+
+Program: MBA Renewables (Distance Learning, Kostenpflichtig)
+Degree: Master of Business Administration
+University: Berliner Hochschule für Technik
+Admission type: NC-frei
+Federal state: Berlin
+Campus: Fernstudieninstitut Berliner Hochschule für Technik
+Subject (major/minor): Kein Fachkennzeichen
+Form of studies: -
+Course category: Distance Education Course
+Course type: Part-time
+Focus: -
+Specialisation: -
+--------------------------------------------------------------
+
+Program: Sport, Business and Law
+Degree: Master of Science
+University: Universität Bayreuth
+Admission type: NC-frei
+Federal state: Bayern
+Campus: Bayreuth
+Subject (major/minor): Major subject
+Form of studies: Consecutive Master's Course
+Course category: In-Class Study Course
+Course type: Full-time
+Focus: -
+Specialisation: -
+Language of instruction: German
+Language proficiency: German B2
+Entrance grade: 1,9 or better (an "application for improvement" can be submitted from grade 2,0) (Grade Conversion using the Bavarian Formula)
+Aptitude assessment: yes
+University info: APPLY to the University of Bayreuth (UBT) in the Portal CAMPUSonline, and REQUEST Preliminary Review Documentation (VPD) via uni-assist
+Admission requirements: Sport, Business and Law (M.Sc.)
+Notes: *If the portal for the desired start semester is not yet open at uni-assist, simply select the current semester. The VPD is valid from the date of issue.
+--------------------------------------------------------------
+
+CRITERIA: ENGINEERING
+--------------------------------------------------------------
+
+Program: Advanced (Systems) Engineering and Engineering Management
+Degree: Master (FH)
+University: Fachhochschule Südwestfalen
+Admission type: NC-frei
+Federal state: Nordrhein-Westfalen
+Campus: Soest
+Subject (major/minor): Hauptfach
+Form of studies: Konsekutives Masterstudium
+Course category: Präsenzstudium
+Course type: Vollzeit
+Focus: -
+Specialisation: -
+University info: The programme will deepen and broaden the research potential and the knowledge base of graduate engineers. Engineering Bachelor courses especially in electronic, mechanical and manufacturing engineering are the required entry qualification. The MSc will provide advanced specialist training beyond the bachelor studies. The course will provide research training in advanced engineering and engineering management. It will equip graduates with the skills to integrate advanced technology into a wide variety of industrial applications and research topics, e.g. control systems design, digital signal processing, advanced production technology. The course will incorporate modern engineering technologies and major non-technical (e.g. management studies) elements, as both these areas are important aspects of modern industrial and engineering practice and research.
+--------------------------------------------------------------
+
+Program: Applied Research in Engineering Sciences
+Degree: Master
+University: Hochschule München University of Applied Sciences
+Admission type: Manueller NC (weitere Zulassungsbedingungen)
+Federal state: Bayern
+Campus: München
+Subject (major/minor): Hauptfach
+Form of studies: Konsekutives Masterstudium
+Course category: Präsenzstudium
+Course type: Vollzeit
+Focus: -
+Specialisation: -
+University info: Sie erhalten eine Vorprüfungsdokumentation (VPD) von uni assist. Damit müssen Sie sich direkt an der Hochschule München bewerben. Alle Informationen zur Bewerbung unter www.hm.edu/master-bewerbung Bitte informieren Sie sich bei der Hochschule, ob Bewerbungen auch für das Sommersemester angenommen werden. Alternativ können Sie die VPD auch für eine spätere Bewerbung zum Wintersemester verwenden.
+--------------------------------------------------------------
+
+Program: Automotive und Mechatronik
+Degree: Master of Science
+University: Universität Bayreuth
+Admission type: NC-frei | NC-frei | Manueller NC (weitere Zulassungsbedingungen) | NC-frei | Manueller NC (weitere Zulassungsbedingungen) | NC-frei | Manueller NC (weitere Zulassungsbedingungen) | NC-frei | NC-frei | NC-frei | NC-frei | NC-frei | NC-frei | NC-frei | NC-frei | Manueller NC (weitere Zulassungsbedingungen) | Manueller NC (weitere Zulassungsbedingungen) | Manueller NC (weitere Zulassungsbedingungen)
+Federal state: Bayern | Bayern | Nordrhein-Westfalen | Thüringen | Bayern | Schleswig-Holstein | Hessen | Nordrhein-Westfalen | Nordrhein-Westfalen | Bayern | Hessen | Hessen | Bayern | Bayern | Niedersachsen
+Campus: Bayreuth | München | Paderborn | Nordhausen | Bayreuth | Kiel | Frankfurt am Main | Paderborn | Paderborn | Bayreuth | Kassel | Frankfurt am Main | Hof | Hof | Emden
+Subject (major/minor): Vollfach | Hauptfach | Hauptfach | Hauptfach | Vollfach | Hauptfach | Hauptfach | Hauptfach | Hauptfach | Vollfach | Hauptfach | Hauptfach | Hauptfach | Hauptfach | Hauptfach
+Form of studies: Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium
+Course category: Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium
+Course type: Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit
+Focus: - | - | - | - | - | - | - | - | - | - | - | - | - | - | -
+Specialisation: - | - | - Computer Engineering for IoT Systems Master Hochschule Nordhausen | - Digitalization & Sustainability in Materials Science & Engineering Master of Science Universität Bayreuth | - | - | Regelstudienzeit 4 | Regelstudienzeit 4 | Electronics and Devices | Electronics and Devices | Signal and Information Processing | Signal and Information Processing | - | - Information Technology Master of Engineering Frankfurt University of Applied Sciences | - | - | - | -
+Voraussetzung: Hochschulstudium im el... | Elektrotechnischer oder fa...
+University info: Bewerbung an der Universität Bayreuth (UBT) im Portal CAMPUSonline & Beantragung der Vorprüfungsd... Biomedical Engineering Master Technische Hochschule Lübeck | Sie erhalten eine Vorprüfungsdokumentation (VPD) von uni-assist. Damit müssen Sie sich direkt an der Hochschule München bewerben. Alle Informationen zur Bewerbung unter www.hm.edu/master-bewerbung Bitte informieren Sie sich bei der Hochschule, ob Bewerbungen auch für das Sommersemester angenommen werden. Alternativ können Sie die VPD auch für eine spätere Bewerbung zum Wintersemester verwenden. Computer Engineering Master of Science Universität Paderborn | Bewerbung an der Universität Bayreuth (UBT) im Portal CAMPUSonline & Beantragung der Vorprüfungsd... Electrical and Information Engineering (Ein-Fach-Masterstudiengang) Master 1-Fach Christian-Albrechts-Universität zu Kiel | EU citizens may apply directly at the Department of Electrical and Information Engineering at Kiel University Electrical Engineering - Renewable Energy (4-semestrig) | Englischsprachiger Studiengang. Informationen zum Studiengang. | Der Studiengang Electrical Systems Engineering bietet zwei Spezialisierungsrichtungen an. Zum einen ... Electrical Systems Engineering | Der Studiengang Electrical Systems Engineering bietet zwei Spezialisierungsrichtungen an. Zum einen ... Elektrotechnik und Informationssystemtechnik Master of Science Universität Bayreuth | Bewerbung an der Universität Bayreuth (UBT) im Portal CAMPUSonline & Beantragung der Vorprüfungsd... Functional Safety Engineering Master Universität Kassel | Englischsprachiger Studiengang. Informationen zumStudiengang. | Bitte beachten Sie das besondere VPD-Verfahren bei einer Bewerbung an der Hochschule Hof. Sie bekomm... Maschinenbau Master of Engineering Hochschule Hof | Bitte beachten Sie das besondere VPD-Verfahren bei einer Bewerbung an der Hochschule Hof. Sie bekomm... Maschinenbau Master Hochschule Emden/Leer | Der Studiengang wird auf deutsch und auf englisch angeboten. Das Angebot gilt erst ab dem Wintersemester 2026/27
+Notes: Biopharmaceutical Engineering Master 1-Fach Technische Universität Dortmund Chemieingenieurwesen Master of Science Universität Ulm Computational Engineering Master Hochschule München University of Applied Sciences Master of Engineering Frankfurt University of Applied Sciences Electrical Systems Engineering Master of Science Universität Paderborn Master of Science Universität Paderborn Internationales Projektmanagement Master of Engineering / Master of Arts Hochschule Hof
+--------------------------------------------------------------
+
+Program: Maschinenbau
+Degree: Master of Science
+University: Universität Bayreuth
+Admission type: NC-frei | NC-frei | Manueller NC (weitere Zulassungsbedingungen) | NC-frei | Manueller NC (weitere Zulassungsbedingungen) | Manueller NC (weitere Zulassungsbedingungen) | Manueller NC (weitere Zulassungsbedingungen)
+Federal state: Bayern | Bayern | Nordrhein-Westfalen | Mecklenburg-Vorpommern | Bayern | Bayern | Bayern
+Campus: Bayreuth | Bayreuth | Dortmund | Rostock | Münchberg | Hof | München
+Subject (major/minor): Vollfach | Vollfach | Hauptfach | Hauptfach | Hauptfach | Hauptfach | Hauptfach
+Form of studies: Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium | Konsekutives Masterstudium
+Course category: Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium | Präsenzstudium
+Course type: Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit | Vollzeit
+Focus: - | - | - | - | - | - | -
+Specialisation: - | - | - | - Sustainable Textiles Master of Engineering Hochschule Hof | - | - | -
+University info: Bewerbung an der Universität Bayreuth (UBT) im Portal CAMPUSonline & Beantragung der Vorprüfungsd... Materialwissenschaft und Werkstofftechnik Master of Science Universität Bayreuth | Bewerbung an der Universität Bayreuth (UBT) im Portal CAMPUSonline & Beantragung der Vorprüfungsd... Process Systems Engineering Master 1-Fach Technische Universität Dortmund | Bitte lesen Sie sich die Informationen auf den folgenden Internetseiten aufmerksam durch! Internets... Sustainable Maritime Engineering Master Universität Rostock | Bitte beachten Sie das besondere VPD-Verfahren bei einer Bewerbung an der Hochschule Hof. Sie bekomm... Sustainable Water Management and Engineering Master of Engineering Hochschule Hof | Bitte beachten Sie das besondere VPD-Verfahren bei einer Bewerbung an der Hochschule Hof. Sie bekomm... Systems Engineering Master Hochschule München University of Applied Sciences | Sie erhalten eine Vorprüfungsdokumentation (VPD) von uni assist. Damitmüssen Sie sich direkt an der ...
+--------------------------------------------------------------
+
+Program: Verbundwerkstoffe
+Degree: Master of Engineering
+University: Hochschule Hof
+Admission type: Manueller NC (weitere Zulassungsbedingungen) | NC-frei
+Federal state: Bayern | Schleswig-Holstein
+Campus: Hof | Lübeck
+Subject (major/minor): Hauptfach | Hauptfach
+Form of studies: Konsekutives Masterstudium | Konsekutives Masterstudium
+Course category: Präsenzstudium | Präsenzstudium
+Course type: Vollzeit | Vollzeit
+Focus: - | -
+Specialisation: - | -
+University info: Bitte beachten Sie das besondere VPD-Verfahren bei einer Bewerbung an der Hochschule Hof. Sie bekomm... Water Engineering Master Master Technische Hochschule Lübeck | Bitte vor Bewerbung die Infos zu Water Engineering auf der Homepage der TH Lübeck lesen. Voraussetzung ist ein Studienabschluss in Bauingenieurwesen, Umweltingenieurwesen, Regenerative Energien oder vergleichbar mit Wasserbezug und einer Abschlussnote von mindestens 2.7 und ausreichenden Englischkenntnisse (siehe Homepage).
+--------------------------------------------------------------
+
+Program: Wirtschaftsinformatik
+Degree: Master of Science
+University: Universität Bayreuth
+Admission type: NC-frei | NC-frei
+Federal state: Bayern | Bayern
+Campus: Bayreuth | Bayreuth
+Subject (major/minor): Vollfach | Vollfach
+Form of studies: Konsekutives Masterstudium | Konsekutives Masterstudium
+Course category: Präsenzstudium | Präsenzstudium
+Course type: Vollzeit | Vollzeit
+Focus: - | -
+Specialisation: - | -
+University info: Bewerbung an der Universität Bayreuth (UBT) im Portal CAMPUSonline & BEANTRAGUNG der Vorprüfungs... Wirtschaftsingenieurwesen Master of Science Universität Bayreuth | Bewerbung an der Universität Bayreuth (UBT) im Portal CAMPUSonline & Beantragung der Vorprüfungsd... Legal DisclosureTerms and ConditionsPrivacy PolicyContact
+--------------------------------------------------------------

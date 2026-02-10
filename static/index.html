@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Uni Eligibility Finder</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #111b2f;
+      --text: #e9eefc;
+      --muted: #a9b4d0;
+      --accent: #6ea8fe;
+      --border: rgba(255,255,255,0.08);
+      --shadow: 0 18px 60px rgba(0,0,0,0.35);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1000px 600px at 10% -10%, rgba(110,168,254,0.25), transparent 60%),
+                  radial-gradient(900px 500px at 90% 0%, rgba(140,96,255,0.20), transparent 55%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px 16px;
+    }
+    .wrap { width: min(980px, 100%); }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    h1 { margin: 0; font-size: 24px; letter-spacing: 0.2px; }
+    .sub { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 16px;
+    }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      overflow: hidden;
+    }
+    label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+    input, textarea, select {
+      width: 100%;
+      background: rgba(0,0,0,0.18);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      outline: none;
+      transition: border-color .15s ease;
+    }
+    input:focus, textarea:focus, select:focus { border-color: rgba(110,168,254,0.7); }
+    textarea { min-height: 110px; resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
+    .actions { display: flex; gap: 10px; margin-top: 14px; }
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 11px 14px;
+      cursor: pointer;
+      color: #071022;
+      background: linear-gradient(180deg, #9bc0ff, #6ea8fe);
+      font-weight: 700;
+      flex: 1;
+    }
+    button.secondary {
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      border: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .pill {
+      display: inline-flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .pill span {
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.16);
+      padding: 6px 10px;
+      border-radius: 999px;
+    }
+    .results h2 { margin: 0 0 8px; font-size: 16px; }
+    .result {
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.14);
+      border-radius: 14px;
+      padding: 12px;
+      margin: 10px 0;
+    }
+    .result .top { display: flex; justify-content: space-between; gap: 10px; }
+    .result .title { font-weight: 700; }
+    .result .uni { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .result .reason { color: var(--text); opacity: 0.9; font-size: 13px; margin-top: 8px; line-height: 1.35; }
+    .badge {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .error { color: #ffb4b4; font-size: 13px; margin-top: 10px; }
+    .footer { color: var(--muted); font-size: 12px; margin-top: 14px; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Uni Eligibility Finder</h1>
+        <div class="sub">Enter student details → shortlist → AI ranking → auto-save to SQLite</div>
+      </div>
+      <div class="badge">Backend: <code>/api/recommend</code></div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <form id="frm">
+          <div class="row">
+            <div>
+              <label>Name</label>
+              <input id="name" placeholder="e.g., Hamza Ali" required />
+            </div>
+            <div>
+              <label>Paid / Unpaid</label>
+              <select id="paid_pref">
+                <option value="no_preference">No preference</option>
+                <option value="unpaid">Unpaid preferred</option>
+                <option value="paid">Paid preferred</option>
+              </select>
+            </div>
+          </div>
+
+          <label>Background</label>
+          <textarea id="background" placeholder="Bachelor major, university, country, any notes..."></textarea>
+
+          <div class="row">
+            <div>
+              <label>GPA / CGPA</label>
+              <input id="gpa" type="number" step="0.01" min="0" placeholder="e.g., 3.2" required />
+            </div>
+            <div>
+              <label>Max GPA (scale)</label>
+              <input id="scale_max" type="number" step="0.1" min="1" value="4.0" required />
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Minimum Passing GPA (scale)</label>
+              <input id="min_pass" type="number" step="0.1" min="0" value="2.0" required />
+            </div>
+            <div>
+              <label>Language restriction</label>
+              <select id="language_mode">
+                <option value="english_only">English only (exclude German-only programs)</option>
+                <option value="german_allowed">German allowed (include German programs)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button type="submit">Find Universities</button>
+            <button class="secondary" type="button" id="clearBtn">Clear</button>
+          </div>
+
+          <div class="footer">
+            Note: German grade conversion is an <b>estimate</b>. Official conversions may differ by university.
+          </div>
+
+          <div class="error" id="err" style="display:none;"></div>
+        </form>
+      </section>
+
+      <section class="card results">
+        <h2>Results</h2>
+        <div class="pill" id="meta"></div>
+        <div id="out">
+          <div class="sub">Submit the form to see recommendations here.</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const frm = document.getElementById("frm");
+    const out = document.getElementById("out");
+    const meta = document.getElementById("meta");
+    const err = document.getElementById("err");
+
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      frm.reset();
+      out.innerHTML = '<div class="sub">Submit the form to see recommendations here.</div>';
+      meta.innerHTML = "";
+      err.style.display = "none";
+    });
+
+    frm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      err.style.display = "none";
+      out.innerHTML = '<div class="sub">Working...</div>';
+      meta.innerHTML = "";
+
+      const payload = {
+        name: document.getElementById("name").value.trim(),
+        background: document.getElementById("background").value.trim(),
+        paid_pref: document.getElementById("paid_pref").value,
+        gpa: Number(document.getElementById("gpa").value),
+        scale_max: Number(document.getElementById("scale_max").value),
+        min_pass: Number(document.getElementById("min_pass").value),
+        language_mode: document.getElementById("language_mode").value
+      };
+
+      try {
+        const r = await fetch("/api/recommend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!r.ok) {
+          const t = await r.text();
+          throw new Error(t || ("Request failed: " + r.status));
+        }
+
+        const data = await r.json();
+
+        meta.innerHTML = `
+          <span>Estimated German grade: <b>${data.german_grade_est}</b></span>
+          <span>Shortlist count: <b>${data.shortlist_count}</b></span>
+        `;
+
+        const results = data.results || [];
+        if (!results.length) {
+          out.innerHTML = '<div class="sub">No results found after filtering.</div>';
+          return;
+        }
+
+        out.innerHTML = results.map((x) => {
+          const score = (x.score_0_100 === null || x.score_0_100 === undefined) ? "—" : x.score_0_100;
+          return `
+            <div class="result">
+              <div class="top">
+                <div>
+                  <div class="title">${x.rank ? (x.rank + ". ") : ""}${escapeHtml(x.program_name || "")}</div>
+                  <div class="uni">${escapeHtml(x.university || "")}</div>
+                </div>
+                <div class="badge">Score: <b>${score}</b></div>
+              </div>
+              <div class="reason">${escapeHtml(x.reason || x.reason_1_2_sentences || "")}</div>
+            </div>
+          `;
+        }).join("");
+
+      } catch (e2) {
+        out.innerHTML = '<div class="sub">Could not fetch results.</div>';
+        err.style.display = "block";
+        err.textContent = "Error: " + e2.message;
+      }
+    });
+
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
