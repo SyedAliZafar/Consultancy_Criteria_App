@@ -28,6 +28,7 @@ load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 DB_PATH = str(BASE_DIR / "consultant.db")
 CRITERIA_FILE = str(BASE_DIR / "Dataset" / "UniAssistCriteria_clean.txt")  # adjust if needed
+QS_FILE = str(BASE_DIR / "Data" / "qs_europe_2026.xlsx")
 
 
 # -----------------------------
@@ -80,8 +81,14 @@ async def lifespan(app: FastAPI):
         print(f"DEEPSEEK_API_KEY loaded? {bool(key)}")
         print(f"DEEPSEEK_URL loaded? {bool(url)}")
 
+    # ✅ LOAD QS AT STARTUP
+    app.state.qs_map = load_qs_germany_map(QS_FILE)
+    print(f"📊 QS loaded rows: {len(app.state.qs_map)}")
+
     yield
+
     print("🛑 Application shutdown")
+
 
 
 app = FastAPI(title="Uni Eligibility Finder", lifespan=lifespan)
@@ -169,6 +176,171 @@ def _lang_blob(r: Dict[str, str]) -> str:
         ]
     )
     return blob.lower()
+
+
+def _norm_uni_name(s: str) -> str:
+    s = (s or "").lower()
+    s = s.replace("&", "and")
+    s = re.sub(r"[^a-z0-9\s]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+
+    # common normalizations
+    replacements = {
+        "university of applied sciences": "hochschule",
+        "technical university": "tu",
+        "technische universitat": "tu",
+        "technische universität": "tu",
+        "universitaet": "universitat",
+        "university": "uni",
+    }
+    for k, v in replacements.items():
+        s = s.replace(k, v)
+
+    return s
+
+
+def load_qs_germany_map(qs_path: str) -> Dict[str, Dict[str, Any]]:
+    """
+    Load QS Europe Excel (Published sheet, multi-row headers),
+    filter Germany only, compute selectivity_index (0..1, higher=more selective),
+    return mapping: normalized institution name -> metrics dict.
+    """
+    if not os.path.exists(qs_path):
+        print(f"⚠️ QS file not found: {qs_path} (QS calibration disabled)")
+        return {}
+
+    raw = pd.read_excel(qs_path, sheet_name="Published", header=None)
+
+    # QS v1.3 pattern: header parts in rows 1 and 3; data starts from row 4
+    h_main = raw.iloc[1]
+    h_sub = raw.iloc[3]
+
+    def clean(x):
+        if pd.isna(x):
+            return ""
+        return str(x).strip()
+
+    cols = []
+    last_main = ""
+    for i in range(raw.shape[1]):
+        main = clean(h_main[i])
+        sub = clean(h_sub[i]).lower()
+
+        if main:
+            last_main = main
+            if "score" in sub:
+                cols.append(f"{main} Score")
+            elif "rank" in sub:
+                cols.append(main if "rank" in main.lower() else f"{main} Rank")
+            else:
+                cols.append(main)
+        else:
+            if "score" in sub:
+                cols.append(f"{last_main} Score")
+            elif "rank" in sub:
+                cols.append(last_main if "rank" in last_main.lower() else f"{last_main} Rank")
+            else:
+                cols.append(clean(h_sub[i]) or f"col_{i}")
+
+    df = raw.iloc[4:].copy()
+    df.columns = cols
+    df.reset_index(drop=True, inplace=True)
+
+    # Find country column
+    country_col = None
+    for c in df.columns:
+        if "country" in c.lower():
+            country_col = c
+            break
+    if not country_col:
+        print("⚠️ QS country column not found (QS calibration disabled)")
+        return {}
+
+    de = df[df[country_col].astype(str).str.lower().eq("germany")].copy()
+
+    # Find institution name column
+    inst_col = None
+    for c in de.columns:
+        if "institution" in c.lower() and "name" in c.lower():
+            inst_col = c
+            break
+    if not inst_col:
+        print("⚠️ QS Institution Name column not found (QS calibration disabled)")
+        return {}
+
+    # Find 2026 rank and overall score columns
+    rank_col = None
+    overall_col = None
+    for c in de.columns:
+        if c.strip().lower() == "2026 rank":
+            rank_col = c
+        if c.strip().lower() == "overall score":
+            overall_col = c
+    if not rank_col or not overall_col:
+        print("⚠️ QS Rank/Overall columns not found (QS calibration disabled)")
+        return {}
+
+    def parse_rank(x):
+        s = str(x).replace("=", "").strip()
+        return pd.to_numeric(s, errors="coerce")
+
+    de[rank_col] = de[rank_col].apply(parse_rank)
+    de[overall_col] = pd.to_numeric(de[overall_col], errors="coerce")
+
+    # rank_pct: best ranks have small pct; invert for selectivity
+    de["rank_pct_de"] = de[rank_col].rank(pct=True)
+    de["overall_norm"] = de[overall_col] / 100.0
+
+    # selectivity_index in [0..1] roughly: higher = more selective
+    de["selectivity_index"] = 0.6 * (1.0 - de["rank_pct_de"]) + 0.4 * (1.0 - de["overall_norm"])
+
+    qs_map: Dict[str, Dict[str, Any]] = {}
+    for _, row in de.iterrows():
+        name = str(row[inst_col])
+        nm = _norm_uni_name(name)
+        qs_map[nm] = {
+            "qs_rank_2026": None if pd.isna(row[rank_col]) else float(row[rank_col]),
+            "qs_overall_score": None if pd.isna(row[overall_col]) else float(row[overall_col]),
+            "qs_selectivity": None if pd.isna(row["selectivity_index"]) else float(row["selectivity_index"]),
+            "qs_institution_name": name,
+        }
+
+    print(f"✅ QS Germany loaded: {len(qs_map)} institutions")
+    return qs_map
+
+
+def match_qs(university_name: str, qs_map: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """
+    Best-effort matching:
+    1) exact normalized match
+    2) contains match (uni name inside qs name or vice versa)
+    """
+    if not university_name or not qs_map:
+        return None
+
+    u = _norm_uni_name(university_name)
+    if u in qs_map:
+        return qs_map[u]
+
+    for k, v in qs_map.items():
+        if u and (u in k or k in u):
+            return v
+
+    return None
+
+
+def apply_qs_selectivity_penalty(score: float, qs_selectivity: Optional[float]) -> float:
+    """
+    Gentle penalty up to ~8 points for highly selective universities.
+    qs_selectivity ~ 0..1 where higher = more selective.
+    """
+    if qs_selectivity is None:
+        return score
+    penalty = 8.0 * float(qs_selectivity)  # max 8
+    return max(0.0, score - penalty)
+
+
+
 
 
 # -----------------------------
@@ -319,59 +491,82 @@ def deepseek_rank(programs: List[Dict[str, Any]], student_profile: Dict[str, Any
     model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
     temperature = float(os.getenv("DEEPSEEK_TEMPERATURE", "0.2"))
 
+    qs_map = getattr(app.state, "qs_map", {})  # ✅ loaded in lifespan
+
     # fallback
     if not api_key or not url:
         top = programs[:10]
-        return [
-            {
-                "rank": i + 1,
+        out = []
+        for i, p in enumerate(top, start=1):
+            qs = match_qs(p.get("University", ""), qs_map) if qs_map else None
+            out.append({
+                "rank": i,
                 "program_name": p.get("Program", ""),
                 "university": p.get("University", ""),
                 "score_0_100": None,
                 "reason": "DeepSeek not configured; rule-based shortlist only.",
                 "uni_type": estimate_uni_type(p.get("University", "")),
                 "flags": p.get("_flags", []),
-            }
-            for i, p in enumerate(top)
-        ]
+                "qs_rank_2026": qs.get("qs_rank_2026") if qs else None,
+                "qs_overall_score": qs.get("qs_overall_score") if qs else None,
+                "qs_selectivity": qs.get("qs_selectivity") if qs else None,
+                "qs_matched_name": qs.get("qs_institution_name") if qs else None,
+            })
+        return out
 
-    # Pack only what model needs (keep prompt smaller)
+    # Pack programs with QS fields (keep prompt compact)
     packed_programs = []
     for p in programs[:30]:
-        packed_programs.append(
-            {
-                "program_name": p.get("Program", ""),
-                "university": p.get("University", ""),
-                "entrance_grade": p.get("Entrance grade", ""),
-                "requirements": " ".join([p.get("Requirement", ""), p.get("Voraussetzung", ""), p.get("Admission requirements", "")]).strip(),
-                "language_info": " ".join([p.get("Language of instruction", ""), p.get("Language proficiency", "")]).strip(),
-                "flags": p.get("_flags", []),
-                "uni_type_hint": estimate_uni_type(p.get("University", "")),
-            }
-        )
+        uni = p.get("University", "")
+        qs = match_qs(uni, qs_map) if qs_map else None
+
+        packed_programs.append({
+            "program_name": p.get("Program", ""),
+            "university": uni,
+            "entrance_grade": p.get("Entrance grade", ""),
+            "requirements": " ".join([
+                p.get("Requirement", ""),
+                p.get("Voraussetzung", ""),
+                p.get("Admission requirements", "")
+            ]).strip(),
+            "language_info": " ".join([
+                p.get("Language of instruction", ""),
+                p.get("Language proficiency", "")
+            ]).strip(),
+            "flags": p.get("_flags", []),
+            "uni_type_hint": estimate_uni_type(uni),
+            # ✅ QS metrics (Germany-only)
+            "qs_rank_2026": qs.get("qs_rank_2026") if qs else None,
+            "qs_overall_score": qs.get("qs_overall_score") if qs else None,
+            "qs_selectivity": qs.get("qs_selectivity") if qs else None,
+        })
 
     system_msg = (
         "You are an admissions eligibility assistant for German universities.\n"
-        "Score each program 0-100 based on these weighted criteria:\n"
-        "1) GPA match (40%) comparing student's German grade estimate vs entrance grade.\n"
-        "2) Background relevance (30%) vs requirements text.\n"
-        "3) Language fit (20%) based on student's study_language and german_level.\n"
-        "4) Borderline flags (10%) – reduce score slightly if flags exist.\n"
-        "Return STRICT JSON only. No markdown. No explanations outside JSON."
+        "Score each program 0-100 estimating probability of a positive admission response.\n"
+        "Use these criteria:\n"
+        "1) GPA match (40%): student's german_grade_est vs entrance_grade.\n"
+        "2) Background relevance (30%): background vs requirements.\n"
+        "3) Language fit (20%): study_language + german_level vs language_info.\n"
+        "4) Borderline flags (5%): if flags exist, slightly reduce score.\n"
+        "5) QS selectivity (5%): if qs_selectivity is high, slightly reduce acceptance likelihood.\n"
+        "Return STRICT JSON only, no markdown, no extra text."
     )
 
     user_msg = {
         "student": student_profile,
         "programs": packed_programs,
-        "schema": [
-            {
-                "rank": 1,
-                "program_name": "...",
-                "university": "...",
-                "score_0_100": 0,
-                "reason": "1-2 sentences",
-            }
-        ],
+        "instructions": (
+            "Return JSON array ONLY in this schema:\n"
+            "[{"
+            "\"rank\": 1, "
+            "\"program_name\": \"...\", "
+            "\"university\": \"...\", "
+            "\"score_0_100\": 0, "
+            "\"reason\": \"1-2 sentences\""
+            "}]\n"
+            "No extra keys. No markdown. JSON only."
+        ),
     }
 
     payload = {
@@ -385,7 +580,6 @@ def deepseek_rank(programs: List[Dict[str, Any]], student_profile: Dict[str, Any
 
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     resp = requests.post(url, headers=headers, json=payload, timeout=60)
-
     if resp.status_code >= 400:
         raise RuntimeError(f"DeepSeek error {resp.status_code}: {resp.text}")
 
@@ -396,31 +590,54 @@ def deepseek_rank(programs: List[Dict[str, Any]], student_profile: Dict[str, Any
     if not match:
         raise RuntimeError(f"DeepSeek returned non-JSON: {content[:800]}")
 
-    ranked = json.loads(match.group(1))
+    ranked: List[Dict[str, Any]] = json.loads(match.group(1))
 
-    # Apply FH/TU calibration + attach flags
-    # Create a quick lookup from (program_name, university) to flags
-    flag_map = {}
+    # Create lookup to attach flags + QS after model
+    meta_map: Dict[tuple, Dict[str, Any]] = {}
     for p in programs[:30]:
-        flag_map[(p.get("Program", ""), p.get("University", ""))] = p.get("_flags", [])
+        uni = p.get("University", "")
+        prog = p.get("Program", "")
+        qs = match_qs(uni, qs_map) if qs_map else None
+        meta_map[(prog, uni)] = {
+            "flags": p.get("_flags", []),
+            "uni_type": estimate_uni_type(uni),
+            "qs_rank_2026": qs.get("qs_rank_2026") if qs else None,
+            "qs_overall_score": qs.get("qs_overall_score") if qs else None,
+            "qs_selectivity": qs.get("qs_selectivity") if qs else None,
+            "qs_matched_name": qs.get("qs_institution_name") if qs else None,
+        }
 
+    # Post-calibration: QS penalty + FH/TU calibration + attach meta
     for item in ranked:
+        prog = item.get("program_name", "")
         uni = item.get("university", "")
-        uni_type = estimate_uni_type(uni)
-        item["uni_type"] = uni_type
-        item["flags"] = flag_map.get((item.get("program_name", ""), uni), [])
+        meta = meta_map.get((prog, uni), {})
+
+        item["flags"] = meta.get("flags", [])
+        item["uni_type"] = meta.get("uni_type", estimate_uni_type(uni))
+        item["qs_rank_2026"] = meta.get("qs_rank_2026")
+        item["qs_overall_score"] = meta.get("qs_overall_score")
+        item["qs_selectivity"] = meta.get("qs_selectivity")
+        item["qs_matched_name"] = meta.get("qs_matched_name")
 
         if item.get("score_0_100") is not None:
             try:
                 s = float(item["score_0_100"])
-                item["score_0_100"] = round(apply_confidence_calibration(s, uni_type), 1)
+
+                # ✅ QS penalty
+                s = apply_qs_selectivity_penalty(s, item.get("qs_selectivity"))
+
+                # ✅ FH/TU heuristic
+                s = apply_confidence_calibration(s, item.get("uni_type", "UNI"))
+
+                item["score_0_100"] = round(s, 1)
             except Exception:
                 pass
 
-    # Re-rank by calibrated score (if present)
+    # Re-rank by calibrated scores (higher is better)
     ranked_sorted = sorted(
         ranked,
-        key=lambda x: (x.get("score_0_100") is None, -(x.get("score_0_100") or 0)),
+        key=lambda x: (x.get("score_0_100") is None, -(x.get("score_0_100") or 0.0)),
     )
     for i, it in enumerate(ranked_sorted, start=1):
         it["rank"] = i
