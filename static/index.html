@@ -8,6 +8,7 @@
     :root{
       --bg:#0b1220; --card:#111b2f; --text:#e9eefc; --muted:#a9b4d0;
       --accent:#6ea8fe; --border:rgba(255,255,255,0.08); --shadow:0 18px 60px rgba(0,0,0,.35);
+      --chip:rgba(0,0,0,.16);
     }
     *{box-sizing:border-box}
     body{
@@ -17,7 +18,7 @@
                   var(--bg);
       color:var(--text); min-height:100vh; display:grid; place-items:center; padding:32px 16px;
     }
-    .wrap{width:min(980px,100%)}
+    .wrap{width:min(1020px,100%)}
     header{display:flex; justify-content:space-between; align-items:end; gap:16px; margin-bottom:18px}
     h1{margin:0; font-size:24px}
     .sub{margin:6px 0 0; color:var(--muted); font-size:14px}
@@ -46,19 +47,30 @@
       background:rgba(255,255,255,.08); color:var(--text);
       border:1px solid var(--border); font-weight:600;
     }
+    .badge{
+      border:1px solid var(--border); border-radius:999px; padding:6px 10px;
+      font-size:12px; color:var(--muted); white-space:nowrap; background:rgba(0,0,0,.14);
+    }
     .pill{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; color:var(--muted); font-size:13px}
     .pill span{border:1px solid var(--border); background:rgba(0,0,0,.16); padding:6px 10px; border-radius:999px}
     .results h2{margin:0 0 8px; font-size:16px}
     .result{border:1px solid var(--border); background:rgba(0,0,0,.14); border-radius:14px; padding:12px; margin:10px 0}
-    .top{display:flex; justify-content:space-between; gap:10px}
+    .top{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
     .title{font-weight:800}
     .uni{color:var(--muted); font-size:13px; margin-top:4px}
     .reason{opacity:.92; font-size:13px; margin-top:8px; line-height:1.35}
-    .badge{border:1px solid var(--border); border-radius:999px; padding:6px 10px; font-size:12px; color:var(--muted); white-space:nowrap}
     .mini{font-size:12px; color:var(--muted); margin-top:10px}
-    .error{color:#ffb4b4; font-size:13px; margin-top:10px; display:none}
+    .error{color:#ffb4b4; font-size:13px; margin-top:10px; display:none; white-space:pre-wrap}
     .details{margin-top:10px; display:flex; gap:10px; align-items:center}
-    .details a{color:var(--accent); font-size:12px; text-decoration:none}
+    .chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px}
+    .chip{
+      border:1px solid var(--border); background:var(--chip);
+      padding:5px 9px; border-radius:999px; font-size:12px; color:var(--muted);
+      max-width:100%;
+    }
+    .chip strong{color:var(--text); font-weight:700}
+    .muted{color:var(--muted)}
+    code{color:var(--text)}
   </style>
 </head>
 <body>
@@ -66,7 +78,7 @@
   <header>
     <div>
       <h1>Uni Eligibility Finder</h1>
-      <div class="sub">English/German/Both + German level + calibrated confidence + details search</div>
+      <div class="sub">Uni-Assist + DAAD (IT) • English/German/Both • German level • QS calibration • quick research links</div>
     </div>
     <div class="badge">API: <code>/api/recommend</code></div>
   </header>
@@ -192,6 +204,7 @@
       meta.innerHTML = `
         <span>Estimated German grade: <b>${data.german_grade_est}</b></span>
         <span>Shortlist count: <b>${data.shortlist_count}</b></span>
+        <span class="muted">Sources: Uni‑Assist + DAAD(IT)</span>
       `;
 
       const results = data.results || [];
@@ -215,7 +228,7 @@
 
           box.innerHTML = dd.google_links.map((l, i) => {
             const q = dd.suggested_search_queries[i];
-            return `<div><a href="${l}" target="_blank">${escapeHtml(q)}</a></div>`;
+            return `<div><a href="${l}" target="_blank" rel="noopener">${escapeHtml(q)}</a></div>`;
           }).join("");
         });
       });
@@ -227,28 +240,61 @@
     }
   });
 
+  function fmtSource(s){
+    const v = (s || "").toLowerCase();
+    if(v === "both") return "Source: Uni‑Assist + DAAD";
+    if(v === "daad") return "Source: DAAD";
+    if(v === "uniassist") return "Source: Uni‑Assist";
+    return s ? ("Source: " + s) : "Source: —";
+  }
+
+  function fmtQs(x){
+    const rank = x.qs_rank_2026;
+    const sel = x.qs_selectivity;
+    if(rank === null || rank === undefined){
+      return null;
+    }
+    const selTxt = (sel === null || sel === undefined) ? "—" : Number(sel).toFixed(2);
+    return `QS Rank 2026: ${rank} • Selectivity: ${selTxt}`;
+  }
+
   function renderResult(x){
     const score = (x.score_0_100 === null || x.score_0_100 === undefined) ? "—" : x.score_0_100;
     const flags = (x.flags && x.flags.length) ? x.flags.join(", ") : "none";
     const uniType = x.uni_type || "UNI";
+    const uni = x.university || "(institution not provided)";
+    const prog = x.program_name || "";
+
+    const src = fmtSource(x.source);
+    const loc = x.location ? ("Location: " + x.location) : null;
+    const dl = x.deadlines ? ("Deadlines: " + oneLine(x.deadlines)) : null;
+    const qs = fmtQs(x);
 
     return `
       <div class="result">
         <div class="top">
-          <div>
-            <div class="title">${x.rank ? (x.rank + ". ") : ""}${escapeHtml(x.program_name || "")}</div>
-            <div class="uni">${escapeHtml(x.university || "")}</div>
+          <div style="min-width:0">
+            <div class="title">${x.rank ? (x.rank + ". ") : ""}${escapeHtml(prog)}</div>
+            <div class="uni">${escapeHtml(uni)}</div>
           </div>
           <div class="badge">Score: <b>${score}</b> • ${uniType}</div>
         </div>
+
+        <div class="chips">
+          <span class="chip">${escapeHtml(src)}</span>
+          ${loc ? `<span class="chip">${escapeHtml(loc)}</span>` : ``}
+          ${dl ? `<span class="chip">${escapeHtml(dl)}</span>` : ``}
+          ${qs ? `<span class="chip">${escapeHtml(qs)}</span>` : ``}
+        </div>
+
         <div class="reason">${escapeHtml(x.reason || "")}</div>
         <div class="mini">Borderline flags: ${escapeHtml(flags)}</div>
 
         <div class="details">
           <button class="secondary" type="button"
             data-detail="1"
-            data-uni="${escapeAttr(x.university || "")}"
-            data-prog="${escapeAttr(x.program_name || "")}"
+            data-uni="${escapeAttr(uni)}"
+            data-prog="${escapeAttr(prog)}"
             style="flex:0; padding:8px 10px; border-radius:10px;">
             More details
           </button>
@@ -257,6 +303,10 @@
         <div class="detailsBox mini" style="margin-top:8px;"></div>
       </div>
     `;
+  }
+
+  function oneLine(s){
+    return String(s).replaceAll("\n", " • ").replace(/\s+/g, " ").trim();
   }
 
   function escapeHtml(s){

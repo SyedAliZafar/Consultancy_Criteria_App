@@ -8,16 +8,16 @@ import sqlite3
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
+import pandas as pd
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-
 
 # -----------------------------
 # Load .env (absolute path)
@@ -27,16 +27,19 @@ ENV_PATH = BASE_DIR / ".env"
 load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 DB_PATH = str(BASE_DIR / "consultant.db")
-CRITERIA_FILE = str(BASE_DIR / "Dataset" / "UniAssistCriteria_clean.txt")  # adjust if needed
-QS_FILE = str(BASE_DIR / "Data" / "qs_europe_2026.xlsx")
 
+# Data sources
+CRITERIA_FILE = str(BASE_DIR / "Dataset" / "UniAssistCriteria_clean.txt")     # Uni-Assist
+DAAD_FILE = str(BASE_DIR / "Dataset" / "DaadCriteria.txt")                    # DAAD IT (your new file)
+QS_FILE = str(BASE_DIR / "Data" / "qs_europe_2026.xlsx")                      # QS Europe (Germany-only)
 
 # -----------------------------
-# Helpers: DB
+# DB (migration-safe)
 # -----------------------------
 def init_db() -> None:
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
+
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS consultations (
@@ -56,135 +59,31 @@ def init_db() -> None:
         """
     )
     conn.commit()
+
+    # Add missing cols for older DBs (safe ALTERs)
+    cur.execute("PRAGMA table_info(consultations)")
+    existing = {row[1] for row in cur.fetchall()}
+
+    def add_col(col: str, typ: str) -> None:
+        if col not in existing:
+            cur.execute(f"ALTER TABLE consultations ADD COLUMN {col} {typ}")
+
+    add_col("study_language", "TEXT")
+    add_col("german_level", "TEXT")
+
+    conn.commit()
     conn.close()
 
 
 # -----------------------------
-# Lifespan (startup/shutdown)
+# QS parsing + matching
 # -----------------------------
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    init_db()
-
-    key = os.getenv("DEEPSEEK_API_KEY")
-    url = os.getenv("DEEPSEEK_URL")
-    model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-
-    print(f"📄 Loading .env from: {ENV_PATH} | exists={ENV_PATH.exists()}")
-    if key and url:
-        print("✅ DeepSeek API configured")
-        print(f"🔑 Key length: {len(key)}")
-        print(f"🌐 URL: {url}")
-        print(f"🤖 Model: {model}")
-    else:
-        print("⚠️ DeepSeek NOT configured – using rule-based shortlist only")
-        print(f"DEEPSEEK_API_KEY loaded? {bool(key)}")
-        print(f"DEEPSEEK_URL loaded? {bool(url)}")
-
-    # ✅ LOAD QS AT STARTUP
-    app.state.qs_map = load_qs_germany_map(QS_FILE)
-    print(f"📊 QS loaded rows: {len(app.state.qs_map)}")
-
-    yield
-
-    print("🛑 Application shutdown")
-
-
-
-app = FastAPI(title="Uni Eligibility Finder", lifespan=lifespan)
-
-# Serve frontend
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-
-
-# -----------------------------
-# Models
-# -----------------------------
-class StudentInput(BaseModel):
-    name: str = Field(..., min_length=1)
-    background: str = ""
-
-    # paid/unpaid is optional; you can decide later how to use it
-    paid_pref: str = "no_preference"  # paid | unpaid | no_preference
-
-    gpa: float
-    scale_max: float = 4.0
-    min_pass: float = 2.0
-
-    # language choice
-    study_language: str = "english"   # english | german | both
-    german_level: str = "none"        # none | a2 | b1 | b2 | c1
-
-
-# -----------------------------
-# GPA conversion (estimate)
-# -----------------------------
-def convert_to_german_grade(
-    grade: float,
-    max_grade: float,
-    min_passing_grade: float,
-    german_best: float = 1.0,
-    german_worst_pass: float = 4.0,
-) -> float:
-    if max_grade <= min_passing_grade:
-        raise ValueError("scale_max must be > min_pass")
-
-    grade = max(min_passing_grade, min(grade, max_grade))
-    german = german_best + (german_worst_pass - german_best) * (max_grade - grade) / (max_grade - min_passing_grade)
-    return round(german, 2)
-
-
-# -----------------------------
-# Parse criteria text file
-# -----------------------------
-def load_program_records(path: str) -> List[Dict[str, str]]:
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Criteria file not found: {path}")
-
-    with open(path, "r", encoding="utf-8") as f:
-        txt = f.read()
-
-    chunks = [c.strip() for c in txt.split("-" * 62) if c.strip()]
-    records: List[Dict[str, str]] = []
-
-    for c in chunks:
-        if c.startswith("WINTER SEMESTER"):
-            continue
-        if c.upper().startswith("CRITERIA:"):
-            continue
-
-        rec: Dict[str, str] = {}
-        for line in c.splitlines():
-            m = re.match(r"^([^:]+):\s*(.*)$", line.strip())
-            if m:
-                rec[m.group(1).strip()] = m.group(2).strip()
-
-        if rec.get("Program") and rec.get("University"):
-            records.append(rec)
-
-    return records
-
-
-def _lang_blob(r: Dict[str, str]) -> str:
-    blob = " ".join(
-        [
-            r.get("Language of instruction", ""),
-            r.get("Language proficiency", ""),
-            r.get("University info", ""),
-            r.get("Admission requirements", ""),
-            r.get("Notes", ""),
-        ]
-    )
-    return blob.lower()
-
-
 def _norm_uni_name(s: str) -> str:
     s = (s or "").lower()
     s = s.replace("&", "and")
     s = re.sub(r"[^a-z0-9\s]", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
 
-    # common normalizations
     replacements = {
         "university of applied sciences": "hochschule",
         "technical university": "tu",
@@ -195,16 +94,10 @@ def _norm_uni_name(s: str) -> str:
     }
     for k, v in replacements.items():
         s = s.replace(k, v)
-
     return s
 
 
 def load_qs_germany_map(qs_path: str) -> Dict[str, Dict[str, Any]]:
-    """
-    Load QS Europe Excel (Published sheet, multi-row headers),
-    filter Germany only, compute selectivity_index (0..1, higher=more selective),
-    return mapping: normalized institution name -> metrics dict.
-    """
     if not os.path.exists(qs_path):
         print(f"⚠️ QS file not found: {qs_path} (QS calibration disabled)")
         return {}
@@ -220,7 +113,7 @@ def load_qs_germany_map(qs_path: str) -> Dict[str, Dict[str, Any]]:
             return ""
         return str(x).strip()
 
-    cols = []
+    cols: List[str] = []
     last_main = ""
     for i in range(raw.shape[1]):
         main = clean(h_main[i])
@@ -247,35 +140,20 @@ def load_qs_germany_map(qs_path: str) -> Dict[str, Dict[str, Any]]:
     df.reset_index(drop=True, inplace=True)
 
     # Find country column
-    country_col = None
-    for c in df.columns:
-        if "country" in c.lower():
-            country_col = c
-            break
+    country_col = next((c for c in df.columns if "country" in c.lower()), None)
     if not country_col:
         print("⚠️ QS country column not found (QS calibration disabled)")
         return {}
 
     de = df[df[country_col].astype(str).str.lower().eq("germany")].copy()
 
-    # Find institution name column
-    inst_col = None
-    for c in de.columns:
-        if "institution" in c.lower() and "name" in c.lower():
-            inst_col = c
-            break
+    inst_col = next((c for c in de.columns if "institution" in c.lower() and "name" in c.lower()), None)
     if not inst_col:
         print("⚠️ QS Institution Name column not found (QS calibration disabled)")
         return {}
 
-    # Find 2026 rank and overall score columns
-    rank_col = None
-    overall_col = None
-    for c in de.columns:
-        if c.strip().lower() == "2026 rank":
-            rank_col = c
-        if c.strip().lower() == "overall score":
-            overall_col = c
+    rank_col = next((c for c in de.columns if c.strip().lower() == "2026 rank"), None)
+    overall_col = next((c for c in de.columns if c.strip().lower() == "overall score"), None)
     if not rank_col or not overall_col:
         print("⚠️ QS Rank/Overall columns not found (QS calibration disabled)")
         return {}
@@ -287,11 +165,10 @@ def load_qs_germany_map(qs_path: str) -> Dict[str, Dict[str, Any]]:
     de[rank_col] = de[rank_col].apply(parse_rank)
     de[overall_col] = pd.to_numeric(de[overall_col], errors="coerce")
 
-    # rank_pct: best ranks have small pct; invert for selectivity
     de["rank_pct_de"] = de[rank_col].rank(pct=True)
     de["overall_norm"] = de[overall_col] / 100.0
 
-    # selectivity_index in [0..1] roughly: higher = more selective
+    # Higher selectivity = tougher admissions
     de["selectivity_index"] = 0.6 * (1.0 - de["rank_pct_de"]) + 0.4 * (1.0 - de["overall_norm"])
 
     qs_map: Dict[str, Dict[str, Any]] = {}
@@ -310,43 +187,331 @@ def load_qs_germany_map(qs_path: str) -> Dict[str, Dict[str, Any]]:
 
 
 def match_qs(university_name: str, qs_map: Dict[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """
-    Best-effort matching:
-    1) exact normalized match
-    2) contains match (uni name inside qs name or vice versa)
-    """
     if not university_name or not qs_map:
         return None
-
     u = _norm_uni_name(university_name)
     if u in qs_map:
         return qs_map[u]
-
     for k, v in qs_map.items():
         if u and (u in k or k in u):
             return v
-
     return None
 
 
 def apply_qs_selectivity_penalty(score: float, qs_selectivity: Optional[float]) -> float:
-    """
-    Gentle penalty up to ~8 points for highly selective universities.
-    qs_selectivity ~ 0..1 where higher = more selective.
-    """
     if qs_selectivity is None:
         return score
-    penalty = 8.0 * float(qs_selectivity)  # max 8
+    penalty = 8.0 * float(qs_selectivity)  # max ~8 points
     return max(0.0, score - penalty)
 
 
+# -----------------------------
+# Lifespan (startup/shutdown)
+# -----------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
 
+    key = os.getenv("DEEPSEEK_API_KEY")
+    url = os.getenv("DEEPSEEK_URL")
+    model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+
+    print(f"📄 Loading .env from: {ENV_PATH} | exists={ENV_PATH.exists()}")
+    if key and url:
+        print("✅ DeepSeek API configured")
+        print(f"🔑 Key length: {len(key)}")
+        print(f"🌐 URL: {url}")
+        print(f"🤖 Model: {model}")
+    else:
+        print("⚠️ DeepSeek NOT configured – using rule-based shortlist only")
+
+    # ✅ Load QS at startup
+    app.state.qs_map = load_qs_germany_map(QS_FILE)
+
+    yield
+    print("🛑 Application shutdown")
+
+
+app = FastAPI(title="Uni Eligibility Finder", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+
+# -----------------------------
+# Models
+# -----------------------------
+class StudentInput(BaseModel):
+    name: str = Field(..., min_length=1)
+    background: str = ""
+
+    paid_pref: str = "no_preference"  # paid | unpaid | no_preference
+
+    gpa: float
+    scale_max: float = 4.0
+    min_pass: float = 2.0
+
+    study_language: str = "english"   # english | german | both
+    german_level: str = "none"        # none | a2 | b1 | b2 | c1
+
+
+# -----------------------------
+# GPA conversion (estimate)
+# -----------------------------
+def convert_to_german_grade(
+    grade: float,
+    max_grade: float,
+    min_passing_grade: float,
+    german_best: float = 1.0,
+    german_worst_pass: float = 4.0,
+) -> float:
+    if max_grade <= min_passing_grade:
+        raise ValueError("scale_max must be > min_pass")
+
+    grade = max(min_passing_grade, min(grade, max_grade))
+    german = german_best + (german_worst_pass - german_best) * (max_grade - grade) / (max_grade - min_passing_grade)
+    return round(german, 2)
+
+
+# -----------------------------
+# Uni-Assist parsing
+# -----------------------------
+def load_uniassist_records(path: str) -> List[Dict[str, Any]]:
+    if not os.path.exists(path):
+        print(f"⚠️ Uni-Assist criteria file not found: {path}")
+        return []
+
+    txt = Path(path).read_text(encoding="utf-8", errors="ignore")
+    chunks = [c.strip() for c in txt.split("-" * 62) if c.strip()]
+
+    records: List[Dict[str, Any]] = []
+    for c in chunks:
+        if c.startswith("WINTER SEMESTER"):
+            continue
+        if c.upper().startswith("CRITERIA:"):
+            continue
+
+        rec: Dict[str, Any] = {"source": "uniassist"}
+        for line in c.splitlines():
+            m = re.match(r"^([^:]+):\s*(.*)$", line.strip())
+            if m:
+                rec[m.group(1).strip()] = m.group(2).strip()
+
+        if rec.get("Program") and rec.get("University"):
+            records.append(rec)
+
+    return records
+
+
+# -----------------------------
+# DAAD parsing (IT file)
+# -----------------------------
+_DAAD_TITLE_RE = re.compile(r"\n\n([A-Z][^\n]{3,120})\n([^\n]*international course[^\n]*)", re.IGNORECASE)
+
+_DAAD_KEYS = {
+    "Degree",
+    "Standard period of study (amount)",
+    "Location",
+    "Deadlines",
+    "Study Type",
+    "Admission semester",
+    "Area of study",
+    "Focus",
+    "Target group",
+    "Admission modus",
+    "Admission requirements",
+    "More information regarding admission requirements",
+    "Languages of instruction",
+    "Main language",
+    "Further languages",
+    "Tuition fees",
+    "Tuition fee",
+    "Fees in EUR",
+    "Total fees",
+    "More information regarding tuition fees",
+    "Application deadlines",
+    "Lecture period",
+    "Annotation",
+}
+
+
+def _is_key_line(line: str) -> bool:
+    return line.strip() in _DAAD_KEYS
+
+
+def _extract_grade_requirement_from_text(text: str) -> Optional[float]:
+    """
+    Try to extract a German-grade-like requirement from DAAD admission requirement text.
+    Examples: 'at least 2.5', 'overall grade 2.3', 'grade <= 2.7' etc.
+    """
+    t = (text or "").lower()
+    # common patterns
+    m = re.search(r"(?:grade|overall grade|final grade|note)\D{0,30}(\d[.,]\d)", t)
+    if m:
+        return float(m.group(1).replace(",", "."))
+    m = re.search(r"(?:at least|minimum)\D{0,20}(\d[.,]\d)", t)
+    if m:
+        return float(m.group(1).replace(",", "."))
+    return None
+
+
+def load_daad_records(path: str) -> List[Dict[str, Any]]:
+    if not os.path.exists(path):
+        print(f"⚠️ DAAD file not found: {path}")
+        return []
+
+    txt = Path(path).read_text(encoding="utf-8", errors="ignore")
+
+    iters = list(_DAAD_TITLE_RE.finditer(txt))
+    if not iters:
+        print("⚠️ DAAD blocks not detected (parser pattern mismatch)")
+        return []
+
+    records: List[Dict[str, Any]] = []
+    for i, m in enumerate(iters):
+        start = m.start(1) - 2
+        end = (iters[i + 1].start(1) - 2) if i + 1 < len(iters) else len(txt)
+        block = txt[start:end].strip()
+
+        title = m.group(1).strip()
+        rec: Dict[str, Any] = {
+            "Program": title,
+            "University": "",  # Often missing in DAAD text → keep empty
+            "source": "daad",
+        }
+
+        lines = [ln.rstrip() for ln in block.splitlines()]
+        current_key: Optional[str] = None
+        buf: Dict[str, List[str]] = {}
+
+        # Skip first two lines (title + descriptor) when scanning keys/values
+        for ln in lines[2:]:
+            s = ln.strip()
+            if not s:
+                continue
+
+            if _is_key_line(s):
+                current_key = s
+                buf.setdefault(current_key, [])
+                continue
+
+            if current_key:
+                buf[current_key].append(s)
+
+        # Map DAAD keys into a common schema
+        rec["Degree"] = " ".join(buf.get("Degree", [])).strip()
+        rec["Location"] = " ".join(buf.get("Location", [])).strip()
+
+        # Deadlines + Application deadlines combined
+        deadlines = []
+        deadlines += buf.get("Deadlines", [])
+        deadlines += buf.get("Application deadlines", [])
+        rec["Deadlines"] = "\n".join(deadlines).strip()
+
+        # Language info
+        main_lang = " ".join(buf.get("Main language", [])).strip()
+        further_lang = " ".join(buf.get("Further languages", [])).strip()
+        if main_lang or further_lang:
+            rec["Language of instruction"] = " / ".join([x for x in [main_lang, further_lang] if x]).strip()
+        else:
+            rec["Language of instruction"] = ""
+
+        # Admission requirements
+        adm_req = "\n".join(buf.get("Admission requirements", [])).strip()
+        more_adm = "\n".join(buf.get("More information regarding admission requirements", [])).strip()
+        full_adm = "\n".join([x for x in [adm_req, more_adm] if x]).strip()
+        rec["Admission requirements"] = full_adm
+
+        # Admission modus
+        rec["Admission modus"] = " ".join(buf.get("Admission modus", [])).strip()
+
+        # Tuition
+        tuition = []
+        tuition += buf.get("Tuition fee", [])
+        tuition += buf.get("Tuition fees", [])
+        tuition += buf.get("Fees in EUR", [])
+        tuition += buf.get("Total fees", [])
+        tuition += buf.get("More information regarding tuition fees", [])
+        rec["Tuition fee"] = " ".join(tuition).strip()
+
+        # Use extracted grade as "Entrance grade" equivalent if possible
+        grade_req = _extract_grade_requirement_from_text(full_adm)
+        if grade_req is not None:
+            rec["Entrance grade"] = str(grade_req)  # keep as string, same as uniassist style
+        else:
+            rec["Entrance grade"] = ""
+
+        records.append(rec)
+
+    print(f"✅ DAAD records loaded: {len(records)} programs")
+    return records
+
+
+# -----------------------------
+# Merge records (Uni-Assist + DAAD)
+# -----------------------------
+def _norm_program_name(s: str) -> str:
+    s = (s or "").lower()
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def merge_records(ua: List[Dict[str, Any]], daad: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Merge duplicates where possible:
+      - primary key: (Program, University) when University exists
+      - if DAAD university missing, keep as separate record (still valuable)
+    """
+    out: List[Dict[str, Any]] = []
+    index: Dict[Tuple[str, str], Dict[str, Any]] = {}
+
+    def key_of(r: Dict[str, Any]) -> Optional[Tuple[str, str]]:
+        prog = _norm_program_name(r.get("Program", ""))
+        uni = _norm_uni_name(r.get("University", "")) if r.get("University") else ""
+        if prog and uni:
+            return (prog, uni)
+        return None
+
+    for r in ua:
+        k = key_of(r)
+        if k:
+            index[k] = r
+        out.append(r)
+
+    for r in daad:
+        k = key_of(r)
+        if k and k in index:
+            # merge into existing uniassist record (prefer filled fields)
+            base = index[k]
+            base["source"] = "both"
+            for field in [
+                "Deadlines", "Tuition fee", "Admission modus",
+                "Admission requirements", "Language of instruction"
+            ]:
+                if (not base.get(field)) and r.get(field):
+                    base[field] = r[field]
+            if (not base.get("Entrance grade")) and r.get("Entrance grade"):
+                base["Entrance grade"] = r["Entrance grade"]
+        else:
+            out.append(r)
+
+    return out
 
 
 # -----------------------------
 # Language logic + German level logic
 # -----------------------------
 GER_LEVEL_SCORE = {"none": 0, "a2": 2, "b1": 3, "b2": 4, "c1": 5}
+
+
+def _lang_blob(r: Dict[str, Any]) -> str:
+    blob = " ".join([
+        str(r.get("Language of instruction", "")),
+        str(r.get("Language proficiency", "")),
+        str(r.get("Admission requirements", "")),
+        str(r.get("University info", "")),
+        str(r.get("Notes", "")),
+    ])
+    return blob.lower()
+
 
 def detect_program_language(blob: str) -> str:
     b = (blob or "").lower()
@@ -363,7 +528,6 @@ def detect_program_language(blob: str) -> str:
 
 def extract_required_german_level(text: str) -> Optional[str]:
     t = (text or "").lower()
-    # very common patterns
     if "c1" in t:
         return "c1"
     if "b2" in t:
@@ -382,7 +546,7 @@ def german_level_ok(student_level: str, required_level: Optional[str]) -> bool:
 
 
 # -----------------------------
-# Confidence calibration (FH vs TU heuristic)
+# FH vs TU heuristic
 # -----------------------------
 def estimate_uni_type(university_name: str) -> str:
     u = (university_name or "").lower()
@@ -394,7 +558,6 @@ def estimate_uni_type(university_name: str) -> str:
 
 
 def apply_confidence_calibration(score: float, uni_type: str) -> float:
-    # small adjustment only (heuristic)
     if uni_type == "FH":
         return min(100.0, score + 5.0)
     if uni_type == "TU":
@@ -403,10 +566,10 @@ def apply_confidence_calibration(score: float, uni_type: str) -> float:
 
 
 # -----------------------------
-# Borderline-aware filtering
+# Filtering (borderline-aware)
 # -----------------------------
 def filter_programs(
-    records: List[Dict[str, str]],
+    records: List[Dict[str, Any]],
     german_grade_est: float,
     study_language: str,
     german_level: str,
@@ -419,8 +582,8 @@ def filter_programs(
         ok = True
         flags: List[str] = []
 
-        # Entrance grade heuristic
-        eg = r.get("Entrance grade", "")
+        # Entrance grade (if parseable)
+        eg = str(r.get("Entrance grade", "") or "").strip()
         if eg:
             m = re.search(r"(\d+[.,]\d+|\d+)", eg)
             if m:
@@ -429,11 +592,14 @@ def filter_programs(
                     ok = False
             else:
                 flags.append("entrance_grade_unparsed")
+        else:
+            # not a rejection; but important to flag
+            flags.append("entrance_grade_missing")
 
         blob = _lang_blob(r)
         plang = detect_program_language(blob)
 
-        # user preference: english / german / both
+        # language preference filter
         if study_language == "english":
             if plang == "german":
                 ok = False
@@ -445,30 +611,30 @@ def filter_programs(
             elif plang == "unknown":
                 flags.append("language_unknown")
         elif study_language == "both":
-            # allow everything
-            pass
+            if plang == "unknown":
+                flags.append("language_unknown")
 
-        # German level requirement only if program is German or mixed and user allows German
+        # German level requirement
         if study_language in ("german", "both") and plang in ("german", "both"):
-            req_level = extract_required_german_level(
-                " ".join(
-                    [
-                        r.get("Language proficiency", ""),
-                        r.get("Admission requirements", ""),
-                        r.get("Notes", ""),
-                    ]
-                )
-            )
+            req_level = extract_required_german_level(blob)
             if req_level:
                 if not german_level_ok(german_level, req_level):
                     ok = False
             else:
                 flags.append("german_level_unknown")
 
-        # background relevance = borderline only (not reject)
-        reqtxt = " ".join([r.get("Requirement", ""), r.get("Voraussetzung", ""), r.get("Admission requirements", "")]).lower()
+        # Requirements missing
+        reqtxt = " ".join([
+            str(r.get("Requirement", "")),
+            str(r.get("Voraussetzung", "")),
+            str(r.get("Admission requirements", "")),
+        ]).strip().lower()
+        if not reqtxt:
+            flags.append("requirements_missing")
+
+        # background mismatch possible (soft)
         if bt and reqtxt:
-            strong_terms = ["electrical", "computer", "engineering", "business", "informatics", "mechanical", "software"]
+            strong_terms = ["electrical", "computer", "engineering", "business", "informatics", "mechanical", "software", "information technology", "it"]
             if any(t in reqtxt for t in strong_terms):
                 if not any(t in bt for t in strong_terms if t in reqtxt):
                     flags.append("background_mismatch_possible")
@@ -483,7 +649,7 @@ def filter_programs(
 
 
 # -----------------------------
-# DeepSeek ranking
+# DeepSeek ranking (with QS + post-calibration)
 # -----------------------------
 def deepseek_rank(programs: List[Dict[str, Any]], student_profile: Dict[str, Any]) -> List[Dict[str, Any]]:
     api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
@@ -491,22 +657,24 @@ def deepseek_rank(programs: List[Dict[str, Any]], student_profile: Dict[str, Any
     model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
     temperature = float(os.getenv("DEEPSEEK_TEMPERATURE", "0.2"))
 
-    qs_map = getattr(app.state, "qs_map", {})  # ✅ loaded in lifespan
+    qs_map = getattr(app.state, "qs_map", {})
 
-    # fallback
+    # fallback if not configured
     if not api_key or not url:
         top = programs[:10]
-        out = []
+        out: List[Dict[str, Any]] = []
         for i, p in enumerate(top, start=1):
-            qs = match_qs(p.get("University", ""), qs_map) if qs_map else None
+            uni = p.get("University", "")
+            qs = match_qs(uni, qs_map) if uni else None
             out.append({
                 "rank": i,
                 "program_name": p.get("Program", ""),
-                "university": p.get("University", ""),
+                "university": uni or "(institution not provided)",
                 "score_0_100": None,
                 "reason": "DeepSeek not configured; rule-based shortlist only.",
-                "uni_type": estimate_uni_type(p.get("University", "")),
+                "uni_type": estimate_uni_type(uni),
                 "flags": p.get("_flags", []),
+                "source": p.get("source", ""),
                 "qs_rank_2026": qs.get("qs_rank_2026") if qs else None,
                 "qs_overall_score": qs.get("qs_overall_score") if qs else None,
                 "qs_selectivity": qs.get("qs_selectivity") if qs else None,
@@ -514,42 +682,41 @@ def deepseek_rank(programs: List[Dict[str, Any]], student_profile: Dict[str, Any
             })
         return out
 
-    # Pack programs with QS fields (keep prompt compact)
     packed_programs = []
     for p in programs[:30]:
         uni = p.get("University", "")
-        qs = match_qs(uni, qs_map) if qs_map else None
-
+        qs = match_qs(uni, qs_map) if uni else None
         packed_programs.append({
             "program_name": p.get("Program", ""),
-            "university": uni,
+            "university": uni or "",
+            "location": p.get("Location", ""),
             "entrance_grade": p.get("Entrance grade", ""),
             "requirements": " ".join([
-                p.get("Requirement", ""),
-                p.get("Voraussetzung", ""),
-                p.get("Admission requirements", "")
+                str(p.get("Requirement", "")),
+                str(p.get("Voraussetzung", "")),
+                str(p.get("Admission requirements", "")),
             ]).strip(),
-            "language_info": " ".join([
-                p.get("Language of instruction", ""),
-                p.get("Language proficiency", "")
-            ]).strip(),
+            "language_info": str(p.get("Language of instruction", "")).strip(),
+            "deadlines": str(p.get("Deadlines", "")).strip(),
+            "tuition_fee": str(p.get("Tuition fee", "")).strip(),
+            "admission_modus": str(p.get("Admission modus", "")).strip(),
             "flags": p.get("_flags", []),
+            "source": p.get("source", ""),
             "uni_type_hint": estimate_uni_type(uni),
-            # ✅ QS metrics (Germany-only)
             "qs_rank_2026": qs.get("qs_rank_2026") if qs else None,
             "qs_overall_score": qs.get("qs_overall_score") if qs else None,
             "qs_selectivity": qs.get("qs_selectivity") if qs else None,
         })
 
     system_msg = (
-        "You are an admissions eligibility assistant for German universities.\n"
+        "You are an admissions eligibility assistant for German university programs.\n"
         "Score each program 0-100 estimating probability of a positive admission response.\n"
         "Use these criteria:\n"
         "1) GPA match (40%): student's german_grade_est vs entrance_grade.\n"
         "2) Background relevance (30%): background vs requirements.\n"
         "3) Language fit (20%): study_language + german_level vs language_info.\n"
-        "4) Borderline flags (5%): if flags exist, slightly reduce score.\n"
-        "5) QS selectivity (5%): if qs_selectivity is high, slightly reduce acceptance likelihood.\n"
+        "4) Borderline flags (5%): if flags exist, reduce score slightly.\n"
+        "5) QS selectivity (5%): if qs_selectivity is high, reduce acceptance likelihood slightly.\n"
         "Return STRICT JSON only, no markdown, no extra text."
     )
 
@@ -565,7 +732,7 @@ def deepseek_rank(programs: List[Dict[str, Any]], student_profile: Dict[str, Any
             "\"score_0_100\": 0, "
             "\"reason\": \"1-2 sentences\""
             "}]\n"
-            "No extra keys. No markdown. JSON only."
+            "JSON only."
         ),
     }
 
@@ -586,55 +753,56 @@ def deepseek_rank(programs: List[Dict[str, Any]], student_profile: Dict[str, Any
     data = resp.json()
     content = data["choices"][0]["message"]["content"].strip()
 
-    match = re.search(r"(\[.*\])", content, flags=re.S)
-    if not match:
+    m = re.search(r"(\[.*\])", content, flags=re.S)
+    if not m:
         raise RuntimeError(f"DeepSeek returned non-JSON: {content[:800]}")
 
-    ranked: List[Dict[str, Any]] = json.loads(match.group(1))
+    ranked: List[Dict[str, Any]] = json.loads(m.group(1))
 
-    # Create lookup to attach flags + QS after model
-    meta_map: Dict[tuple, Dict[str, Any]] = {}
+    # Attach meta + post-calibration
+    meta_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
     for p in programs[:30]:
-        uni = p.get("University", "")
         prog = p.get("Program", "")
-        qs = match_qs(uni, qs_map) if qs_map else None
+        uni = p.get("University", "") or ""
+        qs = match_qs(uni, qs_map) if uni else None
         meta_map[(prog, uni)] = {
             "flags": p.get("_flags", []),
             "uni_type": estimate_uni_type(uni),
+            "source": p.get("source", ""),
+            "location": p.get("Location", ""),
+            "deadlines": p.get("Deadlines", ""),
             "qs_rank_2026": qs.get("qs_rank_2026") if qs else None,
             "qs_overall_score": qs.get("qs_overall_score") if qs else None,
             "qs_selectivity": qs.get("qs_selectivity") if qs else None,
             "qs_matched_name": qs.get("qs_institution_name") if qs else None,
         }
 
-    # Post-calibration: QS penalty + FH/TU calibration + attach meta
     for item in ranked:
         prog = item.get("program_name", "")
-        uni = item.get("university", "")
+        uni = item.get("university", "") or ""
         meta = meta_map.get((prog, uni), {})
 
         item["flags"] = meta.get("flags", [])
         item["uni_type"] = meta.get("uni_type", estimate_uni_type(uni))
+        item["source"] = meta.get("source", "")
+        item["location"] = meta.get("location", "")
+        item["deadlines"] = meta.get("deadlines", "")
+
         item["qs_rank_2026"] = meta.get("qs_rank_2026")
         item["qs_overall_score"] = meta.get("qs_overall_score")
         item["qs_selectivity"] = meta.get("qs_selectivity")
         item["qs_matched_name"] = meta.get("qs_matched_name")
 
+        # score post-calibration
         if item.get("score_0_100") is not None:
             try:
                 s = float(item["score_0_100"])
-
-                # ✅ QS penalty
                 s = apply_qs_selectivity_penalty(s, item.get("qs_selectivity"))
-
-                # ✅ FH/TU heuristic
                 s = apply_confidence_calibration(s, item.get("uni_type", "UNI"))
-
                 item["score_0_100"] = round(s, 1)
             except Exception:
                 pass
 
-    # Re-rank by calibrated scores (higher is better)
     ranked_sorted = sorted(
         ranked,
         key=lambda x: (x.get("score_0_100") is None, -(x.get("score_0_100") or 0.0)),
@@ -646,7 +814,7 @@ def deepseek_rank(programs: List[Dict[str, Any]], student_profile: Dict[str, Any
 
 
 # -----------------------------
-# Save consultation
+# Storage
 # -----------------------------
 def save_consultation(inp: StudentInput, german_grade_est: float, results: List[Dict[str, Any]]):
     conn = sqlite3.connect(DB_PATH)
@@ -686,7 +854,10 @@ def home():
 
 @app.post("/api/recommend")
 def recommend(inp: StudentInput):
-    records = load_program_records(CRITERIA_FILE)
+    ua = load_uniassist_records(CRITERIA_FILE)
+    daad = load_daad_records(DAAD_FILE)
+    records = merge_records(ua, daad)
+
     german_est = convert_to_german_grade(inp.gpa, inp.scale_max, inp.min_pass)
 
     filtered = filter_programs(
@@ -721,7 +892,6 @@ def recommend(inp: StudentInput):
 
 @app.get("/api/program_details")
 def program_details(university: str, program: str):
-    # Lightweight “search further” feature: returns search queries + clickable links
     queries = [
         f"{university} {program} admission requirements",
         f"{university} {program} language requirements",
@@ -730,7 +900,6 @@ def program_details(university: str, program: str):
         f"{university} {program} entrance grade",
         f"{university} {program} module handbook",
     ]
-
     return {
         "university": university,
         "program": program,
